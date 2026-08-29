@@ -66,8 +66,11 @@ def test_gemini_answers_first(tmp_path, monkeypatch, keys):
 
 
 def test_falls_back_to_groq_when_gemini_fails(tmp_path, monkeypatch, keys):
+    """A non-retryable refusal - a dead model id, a rejected key - moves to the
+    second provider at once. A 429 does not; that has its own window and its
+    own test below."""
     router = _Router(
-        gemini=_response(429, {"error": {"message": "rate limited"}}),
+        gemini=_response(404, {"error": {"message": "model not found"}}),
         groq=_groq_says("LEAK: no"),
     )
     monkeypatch.setattr(httpx, "post", router)
@@ -182,3 +185,82 @@ def test_a_failed_answer_is_never_cached(tmp_path, monkeypatch, keys):
         llm.complete("triage this", cache_dir=tmp_path)
 
     assert list(tmp_path.glob("*.json")) == []
+
+
+class _Sequence:
+    """Answers with each queued reply in turn, per provider."""
+
+    def __init__(self, gemini: list, groq: list) -> None:
+        self.replies = {"gemini": list(gemini), "groq": list(groq)}
+        self.urls: list[str] = []
+
+    def __call__(self, url, **kwargs):  # noqa: ANN001 - httpx.post signature
+        self.urls.append(url)
+        provider = "gemini" if "googleapis" in url else "groq"
+        queue = self.replies[provider]
+        reply = queue.pop(0) if queue else queue
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+def _rate_limited(retry_after: str = "3s") -> httpx.Response:
+    return _response(
+        429,
+        {
+            "error": {
+                "code": 429,
+                "message": "quota exceeded",
+                "details": [{"@type": "RetryInfo", "retryDelay": retry_after}],
+            }
+        },
+    )
+
+
+@pytest.fixture
+def no_waiting(monkeypatch):
+    """Retries must be exercised, not slept through."""
+    slept: list[float] = []
+    monkeypatch.setattr(llm.time, "sleep", slept.append)
+    return slept
+
+
+def test_a_rate_limit_is_retried_before_the_provider_is_abandoned(
+    tmp_path, monkeypatch, keys, no_waiting
+):
+    """429 with a retry window means "wait", not "this provider is down".
+    Giving up on the first one burns the fallback for a nine-second pause."""
+    router = _Sequence(
+        gemini=[_rate_limited(), _gemini_says("LEAK: yes")], groq=[_groq_says("unused")]
+    )
+    monkeypatch.setattr(httpx, "post", router)
+
+    assert llm.complete("triage this", cache_dir=tmp_path) == "LEAK: yes"
+    assert not any("groq" in url for url in router.urls)
+    assert no_waiting == [pytest.approx(3.0)]
+
+
+def test_retries_are_bounded_and_then_the_chain_moves_on(
+    tmp_path, monkeypatch, keys, no_waiting
+):
+    router = _Sequence(
+        gemini=[_rate_limited() for _ in range(10)], groq=[_groq_says("from groq")]
+    )
+    monkeypatch.setattr(httpx, "post", router)
+
+    assert llm.complete("triage this", cache_dir=tmp_path) == "from groq"
+    gemini_calls = [u for u in router.urls if "googleapis" in u]
+    assert len(gemini_calls) == llm.MAX_ATTEMPTS
+
+
+def test_a_retry_wait_is_capped(tmp_path, monkeypatch, keys, no_waiting):
+    """A provider asking for a five-minute pause is a provider to fall off,
+    not a reason to freeze the audit."""
+    router = _Sequence(
+        gemini=[_rate_limited("600s")] * llm.MAX_ATTEMPTS, groq=[_groq_says("ok")]
+    )
+    monkeypatch.setattr(httpx, "post", router)
+
+    llm.complete("triage this", cache_dir=tmp_path)
+
+    assert max(no_waiting) <= llm.MAX_RETRY_WAIT_S

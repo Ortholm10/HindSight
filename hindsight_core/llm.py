@@ -1,11 +1,16 @@
 """The runtime provider chain. Nothing else in the project touches an LLM.
 
 Two providers, in a fixed order, for a reason that is quota shape rather than
-quality: Gemini Flash's free tier is large enough to absorb a whole eval run,
-Groq's is capped per *minute* by tokens, and the third key this project holds
-belongs to the pinned one-shot baseline. Borrowing that key at runtime would
-exhaust the baseline and make the comparison it exists for dishonest — so this
-module has no third rung, and a call that fits nowhere raises instead.
+quality: Gemini carries the volume, Groq is capped per *minute* by tokens and
+so can only cover a gap, and the third key this project holds belongs to the
+pinned one-shot baseline. Borrowing that key at runtime would exhaust the
+baseline and make the comparison it exists for dishonest - so this module has
+no third rung, and a call that fits nowhere raises instead.
+
+Measured 2026-08-30, not assumed: gemini-3.5-flash allows 20 requests per DAY
+on the free tier, which is a fifth of one eval run. gemini-3.1-flash-lite is
+the workhorse instead. Free-tier limits move; re-measure before trusting any
+number here, and note that the disk cache below is what makes a re-run free.
 
 Split out of models.py, which the spec fixes as the typed-dataclass module.
 """
@@ -15,6 +20,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import time
 from pathlib import Path
 
 import httpx
@@ -26,7 +33,7 @@ CACHE_DIR = Path(__file__).resolve().parents[1] / ".hindsight" / "llm_cache"
 
 # Pinned, never "-latest": a floating alias that silently reroutes to a new
 # model would change every triage answer between a judge's run and ours.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{GEMINI_MODEL}:generateContent"
@@ -40,6 +47,16 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_PROMPT_TOKEN_LIMIT = 4000
 
 TIMEOUT_S = 60.0
+
+# A 429 carrying a retry window is a queue, not an outage: the free tiers here
+# throttle per minute, and abandoning the primary on the first one spends the
+# fallback's much smaller budget on a pause that would have cleared itself. The
+# cap is what keeps that from becoming a frozen audit.
+MAX_ATTEMPTS = 4
+MAX_RETRY_WAIT_S = 30.0
+
+_RETRY_DELAY_RE = re.compile(r'"?retryDelay"?[":\s]+"?(\d+(?:\.\d+)?)s')
+_TRY_AGAIN_RE = re.compile(r"try again in (\d+(?:\.\d+)?)s", re.IGNORECASE)
 
 
 class LLMError(RuntimeError):
@@ -101,6 +118,19 @@ def _store(cache_file: Path, text: str) -> str:
     return text
 
 
+def _retry_wait(response: httpx.Response, attempt: int) -> float:
+    """However long the provider asked for, capped; otherwise back off.
+
+    The wait is read from the body rather than guessed, because both free tiers
+    state it precisely and a guess that undershoots just spends another request
+    against the quota that is already exhausted.
+    """
+    body = response.text[:600]
+    match = _RETRY_DELAY_RE.search(body) or _TRY_AGAIN_RE.search(body)
+    asked = float(match.group(1)) if match else 2.0**attempt
+    return min(asked, MAX_RETRY_WAIT_S)
+
+
 def _nonempty(text: str, provider: str) -> str:
     """A blank completion is a failure, never an answer. Downstream, "" parses
     as no verdict, which reads identically to a clean file."""
@@ -110,9 +140,14 @@ def _nonempty(text: str, provider: str) -> str:
 
 
 def _post(url: str, payload: dict, headers: dict) -> dict:
-    response = httpx.post(url, json=payload, headers=headers, timeout=TIMEOUT_S)
-    if response.status_code != 200:
-        raise LLMError(f"HTTP {response.status_code}: {response.text[:300]}")
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        response = httpx.post(url, json=payload, headers=headers, timeout=TIMEOUT_S)
+        if response.status_code == 200:
+            break
+        retryable = response.status_code == 429 or response.status_code >= 500
+        if not retryable or attempt == MAX_ATTEMPTS:
+            raise LLMError(f"HTTP {response.status_code}: {response.text[:300]}")
+        time.sleep(_retry_wait(response, attempt))
     data = response.json()
     # A 200 carrying an error body is the free tier's usual way of saying
     # "overloaded". Treated as a provider failure so the chain moves on.
