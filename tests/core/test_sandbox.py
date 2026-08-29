@@ -386,9 +386,11 @@ def test_two_runs_of_the_same_stochastic_strategy_agree(make_script, data_path):
     """A proof by before/after delta is worthless if the same file scores
     differently twice.
 
-    An unseeded RandomForest moved Sharpe by 0.38 between consecutive runs of
-    identical code - wider than several of the leak effects being measured - so
-    classify() would rule "proven" or "no effect" on the luck of the draw.
+    l10's train_test_split(shuffle=True) carries no random_state, so it drew
+    from the global RNG: three runs of that one unchanged file scored 3.39,
+    3.58 and 3.77 - a spread wider than several of the leak effects being
+    measured, so classify() ruled "proven" or "no effect" on the luck of the
+    draw. Its RandomForest was seeded all along; the shuffle was not.
     """
     script = make_script(STOCHASTIC)
 

@@ -144,10 +144,13 @@ def main() -> int:
     df = pd.read_csv(data_path, index_col=0, parse_dates=[0]).sort_index()
 
     # Seeded before the strategy is imported, the same way eval/runner.py seeds
-    # each case. Without this, two runs of one unchanged file disagree - an
-    # unseeded RandomForest moved Sharpe by 0.38 between consecutive runs - and
-    # a before/after delta stops being evidence of anything. It makes the two
-    # runs *comparable*; it does not make either one right.
+    # each case. Without this, any strategy that draws from the global RNG
+    # disagrees with itself: l10 calls train_test_split(shuffle=True) with no
+    # random_state, which moved Sharpe across 3.39 / 3.58 / 3.77 on three runs
+    # of one unchanged file. A before/after delta then stops being evidence of
+    # anything. It makes the two runs *comparable*; it does not make either one
+    # right, and a strategy that seeds its own estimators (l11) was never
+    # affected either way.
     random.seed(_SEED)
     np.random.seed(_SEED)
 
