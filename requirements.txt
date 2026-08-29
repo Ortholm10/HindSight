@@ -1,0 +1,22 @@
+# Every pin is exact: a floating pin that resolves differently on a judge's
+# machine is a reproducibility failure. Resolved and installed on CPython 3.14;
+# all of these publish wheels for 3.11+.
+
+# Runtime
+pandas==3.0.5
+numpy==2.5.2
+scipy==1.18.1
+scikit-learn==1.9.0
+libcst==1.9.0
+yfinance==1.7.0
+backtesting==0.6.6
+fastapi==0.141.1
+sse-starlette==3.4.8
+uvicorn==0.52.4
+httpx==0.28.1
+python-dotenv==1.2.3
+
+# Dev
+pytest==9.1.1
+pytest-timeout==2.4.0
+ruff==0.16.5

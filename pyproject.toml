@@ -1,0 +1,24 @@
+[project]
+name = "hindsight"
+version = "0.1.0"
+description = "Audits a backtest or time-series pipeline for look-ahead bias, and proves every finding by execution."
+requires-python = ">=3.11"
+
+[project.scripts]
+hindsight = "hindsight_cli.main:main"
+
+[tool.setuptools]
+packages = ["hindsight_core", "hindsight_cli", "hindsight_server", "eval"]
+
+[tool.ruff]
+line-length = 88
+# Markdown is knowledge, not code: ruff must not reformat the taxonomy or the
+# leak-type skill files.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
