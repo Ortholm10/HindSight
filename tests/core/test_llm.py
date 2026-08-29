@@ -137,3 +137,48 @@ def test_a_missing_gemini_key_still_reaches_groq(tmp_path, monkeypatch, keys):
 
     assert llm.complete("short prompt", cache_dir=tmp_path) == "from groq"
     assert not any("googleapis" in url for url in router.urls)
+
+
+def _truncated(text: str) -> httpx.Response:
+    """What a thinking model returns when reasoning ate the output budget:
+    HTTP 200, a partial sentence, and finishReason MAX_TOKENS."""
+    return _response(
+        200,
+        {
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": text}]},
+                    "finishReason": "MAX_TOKENS",
+                }
+            ]
+        },
+    )
+
+
+def test_a_truncated_answer_is_a_failure_not_an_answer(tmp_path, monkeypatch, keys):
+    """A cut-off completion is the silent failure this whole project is about:
+    "LEAK: ye..." parses as no verdict, and a caller would score it as clean."""
+    router = _Router(
+        gemini=_truncated(" Let's trace the signal"), groq=_groq_says("LEAK: yes")
+    )
+    monkeypatch.setattr(httpx, "post", router)
+
+    assert llm.complete("triage this", cache_dir=tmp_path) == "LEAK: yes"
+    assert any("groq" in url for url in router.urls)
+
+
+def test_an_empty_completion_is_a_failure(tmp_path, monkeypatch, keys):
+    router = _Router(gemini=_gemini_says("   "), groq=_groq_says("LEAK: no"))
+    monkeypatch.setattr(httpx, "post", router)
+
+    assert llm.complete("triage this", cache_dir=tmp_path) == "LEAK: no"
+
+
+def test_a_failed_answer_is_never_cached(tmp_path, monkeypatch, keys):
+    router = _Router(gemini=_gemini_says(""), groq=httpx.ConnectError("down"))
+    monkeypatch.setattr(httpx, "post", router)
+
+    with pytest.raises(llm.LLMError):
+        llm.complete("triage this", cache_dir=tmp_path)
+
+    assert list(tmp_path.glob("*.json")) == []

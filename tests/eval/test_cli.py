@@ -1,8 +1,7 @@
 import json
 
-import pytest
-
-from hindsight_cli.main import main
+from hindsight_cli.main import MODES, build_parser, main
+from hindsight_core.pipeline import audit as pipeline_audit
 
 
 def test_eval_prints_a_table(capsys):
@@ -39,6 +38,14 @@ def test_unknown_case_exits_nonzero_with_a_message(capsys):
     assert "no case named" in capsys.readouterr().err
 
 
-def test_audit_is_not_built_yet_and_says_so():
-    with pytest.raises(NotImplementedError, match="measuring instrument"):
-        main(["audit", "strategy.py"])
+def test_audit_on_a_missing_file_exits_nonzero_with_a_message(capsys):
+    assert main(["audit", "nowhere/strategy.py"]) == 2
+    assert "no such file" in capsys.readouterr().err
+
+
+def test_audit_keeps_pipeline_addressable_by_name():
+    """--mode pipeline must keep working once the agent loop lands: the
+    pipeline is the documented baseline the agent is measured against."""
+    args = build_parser().parse_args(["audit", "strategy.py", "--mode", "pipeline"])
+    assert args.mode == "pipeline"
+    assert MODES["pipeline"] is pipeline_audit

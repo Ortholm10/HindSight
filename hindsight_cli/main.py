@@ -10,8 +10,20 @@ from pathlib import Path
 
 from eval.baselines.run_baseline import build_results
 from eval.baselines.run_baseline import format_table as format_baseline_table
+from eval.cache_data import DATA_DIR
 from eval.detectors import DETECTORS
 from eval.harness import format_table, run_suite
+from hindsight_cli.printer import print_event
+from hindsight_core.events import EventEmitter
+from hindsight_core.models import Event
+from hindsight_core.pipeline import audit as pipeline_audit
+from hindsight_core.pipeline import finding_payload
+
+# The agent loop joins this table in Session 5; --mode is here from the start so
+# the pipeline keeps its own name rather than becoming "the old default".
+MODES = {"pipeline": pipeline_audit}
+
+DEFAULT_DATA = DATA_DIR / "SPY.csv"
 
 
 def _eval(args: argparse.Namespace) -> int:
@@ -62,10 +74,42 @@ def _eval(args: argparse.Namespace) -> int:
 
 
 def _audit(args: argparse.Namespace) -> int:
-    raise NotImplementedError(
-        "audit arrives with the scan/triage/prove pipeline; this session built "
-        "only the measuring instrument. Use 'hindsight eval' for now."
-    )
+    path = Path(args.path)
+    if not path.exists():
+        raise ValueError(f"no such file: {path}")
+
+    emitter = EventEmitter()
+    events: list[Event] = []
+    emitter.subscribe(events.append)
+    if not args.json or args.out:
+        # --json to stdout would be corrupted by the stream; with --out the
+        # file takes the document and the terminal still shows the run.
+        emitter.subscribe(print_event)
+
+    findings = MODES[args.mode](path, Path(args.data), emitter, timeout_s=args.timeout)
+
+    if args.json or args.out:
+        payload = {
+            "file": str(path),
+            "data": str(args.data),
+            "mode": args.mode,
+            "findings": [finding_payload(f) for f in findings],
+            "events": [
+                {"type": e.type.value, "ts": e.ts, "payload": e.payload} for e in events
+            ],
+        }
+        _write_json(payload, args.out)
+    return 0
+
+
+def _write_json(payload: dict[str, object], out: str | None) -> None:
+    text = json.dumps(payload, indent=2, default=str)
+    if out is None:
+        print(text)
+        return
+    out_path = Path(out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(text + "\n", encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,6 +137,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     au = sub.add_parser("audit", help="audit a strategy file for look-ahead bias")
     au.add_argument("path")
+    au.add_argument(
+        "--data",
+        default=str(DEFAULT_DATA),
+        help="CSV of daily bars the strategy is run against",
+    )
+    au.add_argument(
+        "--mode",
+        default="pipeline",
+        choices=sorted(MODES),
+        help="pipeline: one straight-line pass, the documented baseline",
+    )
+    au.add_argument("--timeout", type=float, default=60.0, help="per-run seconds")
+    au.add_argument("--json", action="store_true", help="emit machine-readable results")
+    au.add_argument("--out", default=None, help="write JSON to this path")
     au.set_defaults(handler=_audit)
     return parser
 

@@ -24,12 +24,14 @@ load_dotenv()
 
 CACHE_DIR = Path(__file__).resolve().parents[1] / ".hindsight" / "llm_cache"
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+# Pinned, never "-latest": a floating alias that silently reroutes to a new
+# model would change every triage answer between a judge's run and ours.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{GEMINI_MODEL}:generateContent"
 )
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Groq's free tier is throttled at roughly 6k tokens/minute. The threshold is
@@ -99,6 +101,14 @@ def _store(cache_file: Path, text: str) -> str:
     return text
 
 
+def _nonempty(text: str, provider: str) -> str:
+    """A blank completion is a failure, never an answer. Downstream, "" parses
+    as no verdict, which reads identically to a clean file."""
+    if not text.strip():
+        raise LLMError(f"{provider} returned an empty completion")
+    return text
+
+
 def _post(url: str, payload: dict, headers: dict) -> dict:
     response = httpx.post(url, json=payload, headers=headers, timeout=TIMEOUT_S)
     if response.status_code != 200:
@@ -123,9 +133,21 @@ def _call_gemini(prompt: str, system: str, max_tokens: int) -> str:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
     data = _post(f"{GEMINI_URL}?key={key}", payload, {})
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        candidate = data["candidates"][0]
+        parts = candidate.get("content", {}).get("parts", [])
+        text = "".join(part.get("text", "") for part in parts)
     except (KeyError, IndexError) as error:
         raise LLMError(f"unreadable gemini response: {str(data)[:300]}") from error
+
+    # A reasoning model spends output budget on thinking before it writes
+    # anything. When the budget runs out mid-thought the API still returns 200
+    # with a fragment, and a fragment parses as "no leak found" - the exact
+    # silent, plausible-looking failure this project exists to catch. Anything
+    # but a clean stop is a provider failure, and the chain moves on.
+    finish = candidate.get("finishReason", "STOP")
+    if finish != "STOP":
+        raise LLMError(f"gemini stopped with {finish}; answer is not complete")
+    return _nonempty(text, "gemini")
 
 
 def _call_groq(prompt: str, system: str, max_tokens: int) -> str:
@@ -146,6 +168,10 @@ def _call_groq(prompt: str, system: str, max_tokens: int) -> str:
         {"Authorization": f"Bearer {key}"},
     )
     try:
-        return data["choices"][0]["message"]["content"]
+        choice = data["choices"][0]
+        text = choice["message"]["content"]
     except (KeyError, IndexError) as error:
         raise LLMError(f"unreadable groq response: {str(data)[:300]}") from error
+    if choice.get("finish_reason") == "length":
+        raise LLMError("groq hit the token limit; answer is not complete")
+    return _nonempty(text, "groq")

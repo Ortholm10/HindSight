@@ -81,7 +81,10 @@ def triage(path: Path, candidate: LeakCandidate) -> tuple[bool, str, str]:
         context=read_context(path, candidate),
         operations=", ".join(OPERATIONS),
     )
-    answer = complete(prompt, system=SYSTEM, max_tokens=256)
+    # Budgeted for a reasoning model: the visible answer is two lines, but
+    # the thinking that precedes it is charged to the same allowance, and a
+    # budget that runs out mid-thought comes back as a truncated fragment.
+    answer = complete(prompt, system=SYSTEM, max_tokens=2048)
 
     leak = _LEAK_RE.search(answer)
     operation = _OP_RE.search(answer)
@@ -170,7 +173,7 @@ def audit(
 
     emitter.emit(
         EventType.FINAL,
-        findings=[_finding_payload(f) for f in findings],
+        findings=[finding_payload(f) for f in findings],
         baseline_outcome=baseline.outcome,
         baseline_metrics=baseline.metrics,
         reason="",
@@ -250,7 +253,7 @@ def _as_payload(candidate: LeakCandidate) -> dict[str, object]:
     }
 
 
-def _finding_payload(finding: Finding) -> dict[str, object]:
+def finding_payload(finding: Finding) -> dict[str, object]:
     return {
         "candidate": _as_payload(finding.candidate),
         "before_run_id": finding.before_run_id,
