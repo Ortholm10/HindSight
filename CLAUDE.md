@@ -39,7 +39,8 @@ hindsight/
 │   ├── memory.py             JSON store of confirmed leak signatures
 │   ├── sandbox.py            subprocess + timeout + resource caps
 │   ├── events.py             typed event emitter
-│   └── models.py             LLM client wrappers, fallback chain
+│   ├── models.py             typed dataclasses ONLY — Finding, RunRecord, Event, LeakCandidate
+│   └── llm.py                LLM client wrappers, fallback chain — the ONLY file that touches an LLM
 ├── hindsight_cli/            thin wrapper → hindsight_core
 ├── hindsight_server/         FastAPI + SSE, thin wrapper → hindsight_core
 ├── web/                      Vite + React frontend
@@ -65,7 +66,7 @@ hindsight/
 |---|---|
 | A new leak type | `docs/taxonomy.md` + `.claude/skills/` + `eval/inject.py` |
 | A new agent capability | `hindsight_core/tools/` — and it must be registered with the orchestrator |
-| Anything that touches the LLM | `hindsight_core/models.py` — nowhere else |
+| Anything that touches the LLM | `hindsight_core/llm.py` — nowhere else |
 | A display concern | `hindsight_cli/` or `web/` — never in core |
 | A new metric | `hindsight_core/tools/compare_runs.py` |
 
@@ -103,7 +104,17 @@ hindsight/
 | Charts | `recharts` | Equity-curve overlay is the key visual |
 | Animation | `framer-motion` | Sparingly — streaming events only |
 
-**LLM providers** (all free tier): Gemini Flash for volume, OpenRouter as fallback and as baseline model #2, Groq only for small fast classification (its TPM ceiling is too low for whole files). All access goes through `models.py` with an explicit fallback chain. Verify live quota limits before relying on a number.
+**LLM providers** (all free tier). Two separate, non-overlapping roles — deliberately not one shared pool, because OpenRouter's free tier is capped by request count (50/day unfunded, shared across every use of the key) rather than tokens, and that budget is too small and too fragile to expose to iterative runtime debugging.
+
+**Runtime chain, routed through `hindsight_core/llm.py`** — used by the pipeline (Session 4) and the agent loop (Session 5):
+
+1. **Gemini Flash — primary, tried first for every call.** ~1,500 requests/day, ~1M TPM. This is the volume workhorse.
+2. **Groq — secondary, tried only on a Gemini failure or rate-limit, and only if the prompt fits.** Groq's free tier caps at roughly 6,000 tokens/minute, so it is only attempted when the outgoing prompt is under a fixed size threshold (set with headroom, e.g. ~4,000 tokens). A call too large for Groq, with Gemini already failed, surfaces as a real error — it does not silently reach for OpenRouter.
+3. **No third provider.** `hindsight_core/llm.py` must never call OpenRouter. This is enforced by a test, not just by convention — see Session 4.
+
+**OpenRouter (`nvidia/nemotron-3-ultra-550b-a55b:free`) — reserved exclusively for the pinned one-shot baseline.** Used only by Session 2's `oneshot.py` and its Session 9 repeat on the hard case: a bounded ~21 calls across the whole project, comfortably inside the 50/day free cap. Nemotron 3 Ultra is chosen deliberately for its reasoning strength — the one-shot baseline should be genuinely capable, not a strawman. If you ever spend $10 on OpenRouter credits (a one-time, permanent unlock to 1,000/day), this separation can be relaxed and OpenRouter folded back into the runtime chain — until then, keep it walled off.
+
+Cache every response to disk keyed by a hash of the prompt; a retried or re-run call must not re-spend quota. Verify live quota limits in each provider's dashboard before relying on a specific number — free-tier limits move.
 
 **No model training. No fine-tuning. No dataset.** All leak knowledge lives in editable text files under `.claude/skills/` and `docs/taxonomy.md`.
 
@@ -198,7 +209,7 @@ Phase 3 is the one that earns the 30 Agent Solution points. Give it the most cap
 # Setup
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # add GEMINI_API_KEY / OPENROUTER_API_KEY
+cp .env.example .env          # add GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY
 
 # Audit a single file
 hindsight audit path/to/strategy.py
