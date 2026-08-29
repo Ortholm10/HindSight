@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Hindsight baseline scratch (regenerated from committed data/cases)
+eval/baselines/.ft_workspace/

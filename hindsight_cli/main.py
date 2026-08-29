@@ -8,11 +8,27 @@ import json
 import sys
 from pathlib import Path
 
+from eval.baselines.run_baseline import build_results
+from eval.baselines.run_baseline import format_table as format_baseline_table
 from eval.detectors import DETECTORS
 from eval.harness import format_table, run_suite
 
 
 def _eval(args: argparse.Namespace) -> int:
+    if args.baseline:
+        result = build_results(args.baseline)
+        text = json.dumps(result, indent=2)
+        if args.json:
+            if args.out:
+                out_path = Path(args.out)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(text + "\n", encoding="utf-8")
+            else:
+                print(text)
+        else:
+            print(format_baseline_table(result))
+        return 0
+
     result = run_suite(
         DETECTORS[args.detector],
         suite=args.suite,
@@ -35,7 +51,9 @@ def _eval(args: argparse.Namespace) -> int:
         }
         text = json.dumps(payload, indent=2)
         if args.out:
-            Path(args.out).write_text(text + "\n", encoding="utf-8")
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(text + "\n", encoding="utf-8")
         else:
             print(text)
     else:
@@ -58,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--suite", default="all", choices=["all", "injected", "clean"])
     ev.add_argument("--case", default=None, help="run a single case by id")
     ev.add_argument("--detector", default="null", choices=sorted(DETECTORS))
+    ev.add_argument(
+        "--baseline",
+        default=None,
+        choices=["oneshot", "freqtrade"],
+        help="score a baseline, not a detector (ignores --detector/--suite/--case)",
+    )
     ev.add_argument("--json", action="store_true", help="emit machine-readable results")
     ev.add_argument("--out", default=None, help="write JSON to this path")
     ev.add_argument(

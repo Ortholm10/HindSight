@@ -1,0 +1,287 @@
+{
+  "baseline": "freqtrade",
+  "summary": {
+    "detected": 4,
+    "injected_total": 5,
+    "injected_scored": 5,
+    "false_positives": 0,
+    "clean_total": 4,
+    "clean_scored": 4,
+    "localised": 0,
+    "localised_total": 0,
+    "not_applicable": [
+      "c01_lagged_crossover",
+      "c02_expanding_zscore",
+      "c06_timeseries_split_pipeline",
+      "c07_full_sample_chart_axis",
+      "l03_same_bar_execution",
+      "l05_full_sample_zscore",
+      "l08_forward_target",
+      "l09_turning_points",
+      "l10_random_split",
+      "l11_preprocess_before_split",
+      "l12_hindsight_universe"
+    ],
+    "inconclusive": []
+  },
+  "cases": [
+    {
+      "case_id": "c01_lagged_crossover",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='partly': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "c02_expanding_zscore",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='partly': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "c03_forward_return_report",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "c04_lagged_asof_merge",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "c05_forward_fill_gaps",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "c06_timeseries_split_pipeline",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='no': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "c07_full_sample_chart_axis",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='partly': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "c08_explicit_resample",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "l01_future_index",
+      "kind": "injected",
+      "leak_type": "L01",
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "l02_centered_window",
+      "kind": "injected",
+      "leak_type": "L02",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": null,
+      "biased_indicators": [
+        "enter_long",
+        "exit_long",
+        "hs_position"
+      ],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "l03_same_bar_execution",
+      "kind": "injected",
+      "leak_type": "L03",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='partly': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "l04_htf_merge",
+      "kind": "injected",
+      "leak_type": "L04",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": null,
+      "biased_indicators": [
+        "exit_long",
+        "hs_position"
+      ],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "l05_full_sample_zscore",
+      "kind": "injected",
+      "leak_type": "L05",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='partly': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "l06_backward_fill",
+      "kind": "injected",
+      "leak_type": "L06",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": null,
+      "biased_indicators": [
+        "enter_long",
+        "exit_long",
+        "hs_position"
+      ],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "l07_resample_label",
+      "kind": "injected",
+      "leak_type": "L07",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": null,
+      "biased_indicators": [
+        "exit_long",
+        "hs_position"
+      ],
+      "has_bias": true,
+      "error": null
+    },
+    {
+      "case_id": "l08_forward_target",
+      "kind": "injected",
+      "leak_type": "L08",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='no': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "l09_turning_points",
+      "kind": "injected",
+      "leak_type": "L09",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='no': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "l10_random_split",
+      "kind": "injected",
+      "leak_type": "L10",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='no': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "l11_preprocess_before_split",
+      "kind": "injected",
+      "leak_type": "L11",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='no': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    },
+    {
+      "case_id": "l12_hindsight_universe",
+      "kind": "injected",
+      "leak_type": "L12",
+      "applicable": false,
+      "reason": "meta.json marks this case freqtrade_expressible='no': its logic cannot be faithfully reduced to a single-pair OHLCV indicator/signal strategy without changing what is being tested.",
+      "detected": null,
+      "localised": null,
+      "biased_indicators": [],
+      "has_bias": null,
+      "error": null
+    }
+  ],
+  "field_notes": {
+    "has_bias": "Raw verdict from freqtrade's own lookahead-analysis output. NOT the primary detection signal (see 'detected') and currently unreliable: it fires True on nearly every applicable case (leaked and clean alike) due to a truncated-run timing artifact in freqtrade's own backtest order-fill bookkeeping (exact open_date/close_date timestamp matching across differently-truncated re-runs), not because the underlying signal is non-causal. Kept for transparency, not deleted \u2014 see eval/baselines/freqtrade.py module docstring for the full mechanism.",
+    "biased_indicators": "Primary detection signal: freqtrade's column-value diff between the full-history run and each truncated re-run, at the compared rows. Non-empty means an indicator/signal column actually differed under truncation \u2014 a real causality violation, not execution-timing noise. 'detected' = bool(biased_indicators) for applicable cases."
+  }
+}

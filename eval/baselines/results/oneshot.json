@@ -1,0 +1,237 @@
+{
+  "baseline": "oneshot",
+  "summary": {
+    "detected": 12,
+    "injected_total": 12,
+    "injected_scored": 12,
+    "false_positives": 0,
+    "clean_total": 8,
+    "clean_scored": 8,
+    "localised": 7,
+    "localised_total": 12,
+    "not_applicable": [],
+    "inconclusive": []
+  },
+  "cases": [
+    {
+      "case_id": "c01_lagged_crossover",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "c02_expanding_zscore",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "c03_forward_return_report",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "c04_lagged_asof_merge",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "c05_forward_fill_gaps",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "c06_timeseries_split_pipeline",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": 1,
+      "error": null
+    },
+    {
+      "case_id": "c07_full_sample_chart_axis",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "c08_explicit_resample",
+      "kind": "clean",
+      "leak_type": null,
+      "applicable": true,
+      "reason": "",
+      "detected": false,
+      "localised": null,
+      "line_reported": null,
+      "error": null
+    },
+    {
+      "case_id": "l01_future_index",
+      "kind": "injected",
+      "leak_type": "L01",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": false,
+      "line_reported": 9,
+      "error": null
+    },
+    {
+      "case_id": "l02_centered_window",
+      "kind": "injected",
+      "leak_type": "L02",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": false,
+      "line_reported": 8,
+      "error": null
+    },
+    {
+      "case_id": "l03_same_bar_execution",
+      "kind": "injected",
+      "leak_type": "L03",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": false,
+      "line_reported": 11,
+      "error": null
+    },
+    {
+      "case_id": "l04_htf_merge",
+      "kind": "injected",
+      "leak_type": "L04",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": false,
+      "line_reported": 14,
+      "error": null
+    },
+    {
+      "case_id": "l05_full_sample_zscore",
+      "kind": "injected",
+      "leak_type": "L05",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 9,
+      "error": null
+    },
+    {
+      "case_id": "l06_backward_fill",
+      "kind": "injected",
+      "leak_type": "L06",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 10,
+      "error": null
+    },
+    {
+      "case_id": "l07_resample_label",
+      "kind": "injected",
+      "leak_type": "L07",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 11,
+      "error": null
+    },
+    {
+      "case_id": "l08_forward_target",
+      "kind": "injected",
+      "leak_type": "L08",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": false,
+      "line_reported": 8,
+      "error": null
+    },
+    {
+      "case_id": "l09_turning_points",
+      "kind": "injected",
+      "leak_type": "L09",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 24,
+      "error": null
+    },
+    {
+      "case_id": "l10_random_split",
+      "kind": "injected",
+      "leak_type": "L10",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 25,
+      "error": null
+    },
+    {
+      "case_id": "l11_preprocess_before_split",
+      "kind": "injected",
+      "leak_type": "L11",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 31,
+      "error": null
+    },
+    {
+      "case_id": "l12_hindsight_universe",
+      "kind": "injected",
+      "leak_type": "L12",
+      "applicable": true,
+      "reason": "",
+      "detected": true,
+      "localised": true,
+      "line_reported": 19,
+      "error": null
+    }
+  ]
+}
