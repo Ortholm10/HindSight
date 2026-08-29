@@ -219,3 +219,5 @@ __marimo__/
 
 # Hindsight baseline scratch (regenerated from committed data/cases)
 eval/baselines/.ft_workspace/
+.hindsight/
+docs/superpowers/

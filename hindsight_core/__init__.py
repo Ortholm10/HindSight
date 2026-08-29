@@ -4,6 +4,8 @@ from hindsight_core.models import (
     EventType,
     Finding,
     LeakCandidate,
+    PatchResult,
+    RunComparison,
     RunRecord,
     SandboxOutcome,
 )
@@ -14,6 +16,8 @@ __all__ = [
     "EventType",
     "Finding",
     "LeakCandidate",
+    "PatchResult",
+    "RunComparison",
     "RunRecord",
     "SandboxOutcome",
 ]
