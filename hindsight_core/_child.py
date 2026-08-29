@@ -13,12 +13,17 @@ import importlib.util
 import io
 import json
 import os
+import random
 import socket
 import sys
 import traceback
 from pathlib import Path
 
 SENTINEL = "<<<HINDSIGHT-RESULT>>>"
+
+# Fixed, not derived from anything: the before and after runs of one audit
+# must share a draw, and a judge re-running the audit must get our numbers.
+_SEED = 20220103
 
 
 def _blocked(*_args: object, **_kwargs: object) -> None:
@@ -131,11 +136,20 @@ def main() -> int:
 
     # Imported before containment so the libraries' own start-up file access is
     # not mistaken for an escape attempt.
+    import numpy as np
     import pandas as pd
 
     from hindsight_core.metrics import evaluate
 
     df = pd.read_csv(data_path, index_col=0, parse_dates=[0]).sort_index()
+
+    # Seeded before the strategy is imported, the same way eval/runner.py seeds
+    # each case. Without this, two runs of one unchanged file disagree - an
+    # unseeded RandomForest moved Sharpe by 0.38 between consecutive runs - and
+    # a before/after delta stops being evidence of anything. It makes the two
+    # runs *comparable*; it does not make either one right.
+    random.seed(_SEED)
+    np.random.seed(_SEED)
 
     _contain(script.parent)
 

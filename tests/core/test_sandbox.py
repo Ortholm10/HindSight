@@ -364,3 +364,36 @@ def test_containment_does_not_break_a_later_import_of_ssl(make_script, data_path
     record = run_sandboxed(make_script(IMPORTS_SSL), data_path, timeout_s=60)
 
     assert record.outcome is SandboxOutcome.COMPLETED, record.stderr
+
+
+STOCHASTIC = """
+import numpy as np
+import pandas as pd
+
+
+def run_positions(df):
+    draw = pd.Series(np.random.rand(len(df)), index=df.index)
+    return (draw > 0.5).shift(1).fillna(False).astype(int)
+
+
+def run_strategy(df):
+    returns = run_positions(df) * df["close"].pct_change()
+    return (1 + returns.fillna(0)).cumprod()
+"""
+
+
+def test_two_runs_of_the_same_stochastic_strategy_agree(make_script, data_path):
+    """A proof by before/after delta is worthless if the same file scores
+    differently twice.
+
+    An unseeded RandomForest moved Sharpe by 0.38 between consecutive runs of
+    identical code - wider than several of the leak effects being measured - so
+    classify() would rule "proven" or "no effect" on the luck of the draw.
+    """
+    script = make_script(STOCHASTIC)
+
+    first = run_sandboxed(script, data_path, timeout_s=60)
+    second = run_sandboxed(script, data_path, timeout_s=60)
+
+    assert first.outcome is SandboxOutcome.COMPLETED, first.stderr
+    assert first.metrics == second.metrics
