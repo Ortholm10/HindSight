@@ -1,0 +1,23 @@
+{
+  "case_id": "l02_centered_window",
+  "kind": "injected",
+  "leak_type": "L02",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 7,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "yes",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [
+    "rule4"
+  ],
+  "limitation_reason": "A centered average has no phase lag, so price crosses it about twice as often as it crosses a trailing one. Every configuration that made the leak large enough for rule 4 also broke rule 2's trade-count bound, and the one that matched counts stopped trading entirely in 2024. The slope form kept here holds the sign of the inflation in all three windows and clears rule 3 on the full range; it clears the magnitude clause in one window of three.",
+  "description": "Trend following on SPY: hold while the 60-day average is rising."
+}

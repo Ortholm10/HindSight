@@ -1,0 +1,21 @@
+{
+  "case_id": "l09_turning_points",
+  "kind": "injected",
+  "leak_type": "L09",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 24,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "no",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "Buy SPY for twenty sessions after a local low has been identified."
+}

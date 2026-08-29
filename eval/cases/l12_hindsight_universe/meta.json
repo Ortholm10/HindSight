@@ -1,0 +1,28 @@
+{
+  "case_id": "l12_hindsight_universe",
+  "kind": "injected",
+  "leak_type": "L12",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 19,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "no",
+  "patchable": false,
+  "symbols": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "EFA",
+    "EEM",
+    "TLT",
+    "GLD",
+    "XLE"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "Equal-weight 50-day trend across a fixed multi-asset universe."
+}

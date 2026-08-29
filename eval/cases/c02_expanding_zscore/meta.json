@@ -1,0 +1,23 @@
+{
+  "case_id": "c02_expanding_zscore",
+  "kind": "clean",
+  "leak_type": null,
+  "ground_truth_file": null,
+  "ground_truth_line": null,
+  "expected_inflation": "none",
+  "freqtrade_expressible": "partly",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [
+    "L05"
+  ],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "Mean reversion on SPY scored against an expanding-window z-score."
+}

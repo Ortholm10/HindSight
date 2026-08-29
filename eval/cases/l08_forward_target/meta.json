@@ -1,0 +1,21 @@
+{
+  "case_id": "l08_forward_target",
+  "kind": "injected",
+  "leak_type": "L08",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 9,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "no",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "20-day momentum on SPY, with a forward-looking column kept for reporting."
+}

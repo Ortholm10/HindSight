@@ -1,0 +1,23 @@
+{
+  "case_id": "l05_full_sample_zscore",
+  "kind": "injected",
+  "leak_type": "L05",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 9,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "partly",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [
+    "rule3"
+  ],
+  "limitation_reason": "The taxonomy designs L05 as the modest case, whose purpose is to test continued suspicion rather than to produce a dramatic number. It clears rule 4 (sign in all three windows, magnitude in two) but its full-range delta is 0.29, short of rule 3's 0.4. Rule 7 proves it reads the future without reference to any Sharpe threshold.",
+  "description": "Mean reversion on SPY: buy the weakest days against the 20-day trend."
+}

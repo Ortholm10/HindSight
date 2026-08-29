@@ -1,0 +1,24 @@
+{
+  "case_id": "c06_timeseries_split_pipeline",
+  "kind": "clean",
+  "leak_type": null,
+  "ground_truth_file": null,
+  "ground_truth_line": null,
+  "expected_inflation": "none",
+  "freqtrade_expressible": "no",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [
+    "L10",
+    "L11"
+  ],
+  "causal_check": false,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "A logistic classifier on SPY features, cross-validated chronologically."
+}

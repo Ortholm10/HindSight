@@ -1,0 +1,21 @@
+{
+  "case_id": "l03_same_bar_execution",
+  "kind": "injected",
+  "leak_type": "L03",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 9,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "partly",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "The reference form: hold SPY while its close leads its own 20-day average."
+}

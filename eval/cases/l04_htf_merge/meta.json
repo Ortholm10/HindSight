@@ -1,0 +1,21 @@
+{
+  "case_id": "l04_htf_merge",
+  "kind": "injected",
+  "leak_type": "L04",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 13,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "yes",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "Daily SPY trend, gated by a weekly average merged back with merge_asof."
+}

@@ -1,0 +1,23 @@
+{
+  "case_id": "c08_explicit_resample",
+  "kind": "clean",
+  "leak_type": null,
+  "ground_truth_file": null,
+  "ground_truth_line": null,
+  "expected_inflation": "none",
+  "freqtrade_expressible": "yes",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [
+    "L07"
+  ],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "Daily SPY trend gated by a monthly average, resampled explicitly."
+}

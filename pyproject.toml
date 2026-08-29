@@ -12,9 +12,10 @@ packages = ["hindsight_core", "hindsight_cli", "hindsight_server", "eval"]
 
 [tool.ruff]
 line-length = 88
-# Markdown is knowledge, not code: ruff must not reformat the taxonomy or the
-# leak-type skill files.
-extend-exclude = ["*.md"]
+# Markdown is knowledge, not code, and the frozen cases are evidence: a lint
+# autofix that shifts a line silently invalidates every ground-truth line
+# number in eval/cases/*/meta.json.
+extend-exclude = ["*.md", "eval/cases"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

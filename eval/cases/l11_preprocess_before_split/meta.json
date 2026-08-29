@@ -1,0 +1,23 @@
+{
+  "case_id": "l11_preprocess_before_split",
+  "kind": "injected",
+  "leak_type": "L11",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 31,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "no",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": false,
+  "known_limitations": [
+    "rule4"
+  ],
+  "limitation_reason": "Splitting into three windows leaves about 95 training rows per window, which is not enough to fit the model whose feature selection is the subject of the case, so rule 4 cannot separate the leak from sampling noise. Rules 1, 2 and 3 pass on the full range.",
+  "description": "A forest on the four SPY features chosen on the training half."
+}

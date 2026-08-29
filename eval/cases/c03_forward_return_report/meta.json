@@ -1,0 +1,24 @@
+{
+  "case_id": "c03_forward_return_report",
+  "kind": "clean",
+  "leak_type": null,
+  "ground_truth_file": null,
+  "ground_truth_line": null,
+  "expected_inflation": "none",
+  "freqtrade_expressible": "yes",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [
+    "L01",
+    "L08"
+  ],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "description": "20-day momentum on SPY. A forward return is computed, for reporting only."
+}
