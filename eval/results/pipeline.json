@@ -1,0 +1,260 @@
+{
+  "suite": "all",
+  "detector": "pipeline",
+  "detected": 6,
+  "injected_total": 12,
+  "localised": 4,
+  "type_correct": 4,
+  "false_positives": 0,
+  "clean_total": 8,
+  "localisation_precision": 0.5714285714285714,
+  "candidates_on_injected": 7,
+  "cases": [
+    {
+      "case_id": "c01_lagged_crossover",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c02_expanding_zscore",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c03_forward_return_report",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c04_lagged_asof_merge",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c05_forward_fill_gaps",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c06_timeseries_split_pipeline",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c07_full_sample_chart_axis",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "c08_explicit_resample",
+      "kind": "clean",
+      "leak_type": null,
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l01_future_index",
+      "kind": "injected",
+      "leak_type": "L01",
+      "candidates": 1,
+      "detected": true,
+      "localised": true,
+      "type_correct": true,
+      "on_ground_truth": 1,
+      "sharpe_delta": 2.0976027030800766,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l02_centered_window",
+      "kind": "injected",
+      "leak_type": "L02",
+      "candidates": 1,
+      "detected": true,
+      "localised": true,
+      "type_correct": true,
+      "on_ground_truth": 1,
+      "sharpe_delta": 1.0534284794932571,
+      "known_limitations": [
+        "rule4"
+      ]
+    },
+    {
+      "case_id": "l03_same_bar_execution",
+      "kind": "injected",
+      "leak_type": "L03",
+      "candidates": 1,
+      "detected": true,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 3.2534618395720223,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l04_htf_merge",
+      "kind": "injected",
+      "leak_type": "L04",
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 1.300783720892419,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l05_full_sample_zscore",
+      "kind": "injected",
+      "leak_type": "L05",
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 0.28950386860996685,
+      "known_limitations": [
+        "rule3"
+      ]
+    },
+    {
+      "case_id": "l06_backward_fill",
+      "kind": "injected",
+      "leak_type": "L06",
+      "candidates": 1,
+      "detected": true,
+      "localised": true,
+      "type_correct": true,
+      "on_ground_truth": 1,
+      "sharpe_delta": 2.5907911774972185,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l07_resample_label",
+      "kind": "injected",
+      "leak_type": "L07",
+      "candidates": 2,
+      "detected": true,
+      "localised": true,
+      "type_correct": true,
+      "on_ground_truth": 1,
+      "sharpe_delta": 1.2337631526587316,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l08_forward_target",
+      "kind": "injected",
+      "leak_type": "L08",
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 1.5855568532091984,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l09_turning_points",
+      "kind": "injected",
+      "leak_type": "L09",
+      "candidates": 1,
+      "detected": true,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 1.2673944796470757,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l10_random_split",
+      "kind": "injected",
+      "leak_type": "L10",
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 2.463245946843668,
+      "known_limitations": []
+    },
+    {
+      "case_id": "l11_preprocess_before_split",
+      "kind": "injected",
+      "leak_type": "L11",
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": 0.9132498656190078,
+      "known_limitations": [
+        "rule4"
+      ]
+    },
+    {
+      "case_id": "l12_hindsight_universe",
+      "kind": "injected",
+      "leak_type": "L12",
+      "candidates": 0,
+      "detected": false,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
+      "sharpe_delta": null,
+      "known_limitations": []
+    }
+  ]
+}

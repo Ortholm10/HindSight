@@ -50,7 +50,22 @@ def _contain(root: Path) -> None:
     `io.open` (what pathlib actually calls), and `os.open` (what bypasses both).
     Patching only the first leaves `Path(...).write_text(...)` wide open.
     """
-    socket.socket = _blocked  # type: ignore[assignment]
+    # socket.socket stays a class. Replacing it with a function breaks every
+    # later `class X(socket.socket)` - ssl does exactly that, and sklearn
+    # reaches ssl through joblib and asyncio, so a swapped-out class turns
+    # every scikit-learn strategy into an unexplained crash indistinguishable
+    # from an untestable one. Blocking the methods that actually reach the
+    # network keeps the type intact.
+    for method in (
+        "__init__",
+        "connect",
+        "connect_ex",
+        "bind",
+        "sendto",
+        "sendall",
+        "send",
+    ):
+        setattr(socket.socket, method, _blocked)
     socket.create_connection = _blocked  # type: ignore[assignment]
     socket.socketpair = _blocked  # type: ignore[assignment]
 

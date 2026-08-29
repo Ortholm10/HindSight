@@ -334,3 +334,33 @@ def test_strategy_stdout_does_not_corrupt_the_result(make_script, data_path):
     record = run_sandboxed(make_script(NOISY), data_path, timeout_s=60)
 
     assert record.outcome is SandboxOutcome.COMPLETED
+
+
+IMPORTS_SSL = """
+import pandas as pd
+import ssl  # noqa: F401 - a stand-in for sklearn, which reaches ssl via joblib
+
+
+def run_positions(df):
+    sma = df["close"].rolling(3).mean()
+    return (df["close"] > sma).shift(1).fillna(False).astype(int)
+
+
+def run_strategy(df):
+    returns = run_positions(df) * df["close"].pct_change()
+    return (1 + returns.fillna(0)).cumprod()
+"""
+
+
+def test_containment_does_not_break_a_later_import_of_ssl(make_script, data_path):
+    """The network guard must not make honest libraries unimportable.
+
+    `ssl` does `class SSLSocket(socket)`, so replacing socket.socket with a
+    function makes it unsubclassable and every strategy that imports sklearn -
+    which reaches ssl through joblib and asyncio - dies before it ever trades.
+    That failure is indistinguishable from an untestable strategy, which is
+    exactly the confusion this sandbox exists to prevent.
+    """
+    record = run_sandboxed(make_script(IMPORTS_SSL), data_path, timeout_s=60)
+
+    assert record.outcome is SandboxOutcome.COMPLETED, record.stderr
