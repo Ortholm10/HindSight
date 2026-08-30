@@ -12,16 +12,29 @@ from eval.baselines.run_baseline import build_results
 from eval.baselines.run_baseline import format_table as format_baseline_table
 from eval.cache_data import DATA_DIR
 from eval.detectors import DETECTORS
-from eval.harness import format_table, run_suite
+from eval.harness import SuiteResult, format_table, run_suite
 from hindsight_cli.printer import print_event
 from hindsight_core.events import EventEmitter
 from hindsight_core.models import Event
+from hindsight_core.orchestrator import audit as agent_audit
 from hindsight_core.pipeline import audit as pipeline_audit
 from hindsight_core.pipeline import finding_payload
 
-# The agent loop joins this table in Session 5; --mode is here from the start so
-# the pipeline keeps its own name rather than becoming "the old default".
-MODES = {"pipeline": pipeline_audit}
+# Two audit paths, both first-class. The pipeline keeps its own name rather than
+# becoming "the old default", because the measured difference between the two is
+# the headline entry in the changelog and it only stays measurable while both
+# still run.
+MODES = {"pipeline": pipeline_audit, "agent": agent_audit}
+
+# The columns worth a spread. Localisation precision is derived from two of
+# them, so reporting it here as well would be the same information twice.
+_SPREAD_FIELDS = (
+    "detected",
+    "localised",
+    "type_correct",
+    "false_positives",
+    "candidates_on_injected",
+)
 
 DEFAULT_DATA = DATA_DIR / "SPY.csv"
 
@@ -41,25 +54,24 @@ def _eval(args: argparse.Namespace) -> int:
             print(format_baseline_table(result))
         return 0
 
-    result = run_suite(
-        DETECTORS[args.detector],
-        suite=args.suite,
-        case_id=args.case,
-        with_metrics=not args.no_metrics,
-    )
+    passes = [
+        run_suite(
+            DETECTORS[args.detector],
+            suite=args.suite,
+            case_id=args.case,
+            with_metrics=not args.no_metrics,
+        )
+        for _ in range(max(1, args.repeat))
+    ]
+    result = passes[0]
     if args.json:
         payload = {
             "suite": result.suite,
             "detector": args.detector,
-            "detected": result.detected,
-            "injected_total": result.injected_total,
-            "localised": result.localised,
-            "type_correct": result.type_correct,
-            "false_positives": result.false_positives,
-            "clean_total": result.clean_total,
-            "localisation_precision": result.localisation_precision,
-            "candidates_on_injected": result.candidates_on_injected,
-            "cases": [dataclasses.asdict(r) for r in result.results],
+            "repeat": len(passes),
+            **_suite_payload(result),
+            "passes": [_suite_payload(p) for p in passes],
+            "spread": _spread(passes),
         }
         text = json.dumps(payload, indent=2)
         if args.out:
@@ -70,7 +82,45 @@ def _eval(args: argparse.Namespace) -> int:
             print(text)
     else:
         print(format_table(result))
+        if len(passes) > 1:
+            print()
+            print(format_spread(passes))
     return 0
+
+
+def _suite_payload(result: SuiteResult) -> dict[str, object]:
+    return {
+        "detected": result.detected,
+        "injected_total": result.injected_total,
+        "localised": result.localised,
+        "type_correct": result.type_correct,
+        "false_positives": result.false_positives,
+        "clean_total": result.clean_total,
+        "localisation_precision": result.localisation_precision,
+        "candidates_on_injected": result.candidates_on_injected,
+        "cases": [dataclasses.asdict(r) for r in result.results],
+    }
+
+
+def _spread(passes: list[SuiteResult]) -> dict[str, dict[str, object]]:
+    """min, max, and every value. Deliberately not a mean.
+
+    The agent is not deterministic, and a mean over three runs would hide the
+    one that went badly — which is the only reason to run it three times.
+    """
+    spread: dict[str, dict[str, object]] = {}
+    for field in _SPREAD_FIELDS:
+        values = [getattr(p, field) for p in passes]
+        spread[field] = {"min": min(values), "max": max(values), "values": values}
+    return spread
+
+
+def format_spread(passes: list[SuiteResult]) -> str:
+    lines = [f"spread over {len(passes)} run(s)", "-" * 48]
+    for field, stats in _spread(passes).items():
+        values = " ".join(str(v) for v in stats["values"])
+        lines.append(f"{field:<24} {stats['min']}-{stats['max']}   [{values}]")
+    return "\n".join(lines)
 
 
 def _audit(args: argparse.Namespace) -> int:
@@ -129,6 +179,13 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--json", action="store_true", help="emit machine-readable results")
     ev.add_argument("--out", default=None, help="write JSON to this path")
     ev.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="run the suite N times and report the spread; the agent is not "
+        "deterministic and one pass is not a result",
+    )
+    ev.add_argument(
         "--no-metrics",
         action="store_true",
         help="skip the before/after runs that measure each leak's Sharpe delta",
@@ -146,7 +203,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         default="pipeline",
         choices=sorted(MODES),
-        help="pipeline: one straight-line pass, the documented baseline",
+        help="pipeline: one straight-line pass, the documented baseline; "
+        "agent: the loop that retries, re-baselines, and keeps hunting",
     )
     au.add_argument("--timeout", type=float, default=60.0, help="per-run seconds")
     au.add_argument("--json", action="store_true", help="emit machine-readable results")

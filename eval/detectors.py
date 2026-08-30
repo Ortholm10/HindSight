@@ -6,9 +6,10 @@ invent detections, the other proves it can recognise a detector that is merely
 highlighting everything. A harness checked against only the first would score a
 line-flagging detector as perfect.
 
-The third is Hindsight's own straight-line pipeline, scored on exactly the same
-rules, which is what makes the pipeline-versus-agent delta a measurement rather
-than a claim.
+The last three are Hindsight's own: the straight-line pipeline, the agent, and
+the agent again with its unpatchable boundary reports included. All scored on
+exactly the same rules, which is what makes the pipeline-versus-agent delta a
+measurement rather than a claim.
 """
 
 from __future__ import annotations
@@ -18,7 +19,8 @@ from pathlib import Path
 
 from eval.cache_data import DATA_DIR
 from hindsight_core.events import EventEmitter
-from hindsight_core.models import LeakCandidate
+from hindsight_core.models import Event, EventType, LeakCandidate
+from hindsight_core.orchestrator import audit as agent_audit
 from hindsight_core.pipeline import audit
 
 
@@ -73,8 +75,43 @@ def _data_for(path: Path) -> Path:
     return DATA_DIR / f"{symbols[0]}.csv"
 
 
+def agent_detector(path: Path) -> list[LeakCandidate]:
+    """The agent scored as a detector, on exactly the pipeline's rules.
+
+    Proven leaks only. A candidate the agent detected but could not repair
+    mechanically is real information, and it is deliberately NOT here: it has
+    no execution record behind it, and the product refuses to report one of
+    those as a finding. `agent-reported` is where it appears.
+    """
+    return [f.candidate for f in agent_audit(path, _data_for(path), EventEmitter())]
+
+
+def agent_reported_detector(path: Path) -> list[LeakCandidate]:
+    """Proven leaks plus the boundary cases the agent could not patch.
+
+    Scored against the same eight controls as everything else, so a boundary
+    report that fires on clean code lands in the false-positive column rather
+    than passing as candour. Publishing the honest extra has to be able to cost
+    something, or it is not a measurement.
+    """
+    emitter = EventEmitter()
+    events: list[Event] = []
+    emitter.subscribe(events.append)
+    findings = agent_audit(path, _data_for(path), emitter)
+    boundary = [
+        LeakCandidate(**entry["candidate"])
+        for event in events
+        if event.type is EventType.FINAL
+        for entry in event.payload.get("unproven", ())
+        if entry["status"] == "not_mechanically_patchable"
+    ]
+    return [f.candidate for f in findings] + boundary
+
+
 DETECTORS = {
     "null": null_detector,
     "everything": everything_detector,
     "pipeline": pipeline_detector,
+    "agent": agent_detector,
+    "agent-reported": agent_reported_detector,
 }

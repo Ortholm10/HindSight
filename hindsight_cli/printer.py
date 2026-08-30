@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import textwrap
+
 from hindsight_core.models import Event, EventType
 
 _STATUS_LABEL = {
@@ -10,6 +12,8 @@ _STATUS_LABEL = {
     "patch_broken": "PATCH BROKEN",
     "untestable": "UNTESTABLE",
     "patch_failed": "PATCH DID NOT APPLY",
+    "not_mechanically_patchable": "DETECTED, NOT MECHANICALLY PATCHABLE",
+    "no_operation": "NO OPERATION AVAILABLE",
 }
 
 
@@ -54,12 +58,51 @@ def _render(event: Event) -> list[str]:
     if event.type is EventType.PROVE_RESULT:
         return _prove_result(payload)
 
+    if event.type is EventType.AGENT_DECISION:
+        return _decision(payload)
+
     if event.type is EventType.FINAL:
-        if payload.get("reason"):
-            return ["", f"final     {payload['reason']}"]
-        return ["", f"final     {len(payload['findings'])} proven leak(s)"]
+        return _final(payload)
 
     return [f"{event.type:<9} {payload}"]
+
+
+def _decision(payload: dict[str, object]) -> list[str]:
+    """What the agent decided and why, including the candidates it dropped.
+
+    A discard is reasoning, not noise: the reader needs to see the line the
+    agent looked at and declined, or "0 proven leaks" is indistinguishable from
+    "never looked".
+    """
+    candidate = payload["candidate"]
+    lines = [
+        f"decide    step {payload['step']} {payload['action']} "
+        f"{candidate['leak_type']} line {candidate['line']}",
+        *_wrap(str(payload["reason"])),
+        f"          [{payload['findings']} proven, {payload['pending']} pending, "
+        f"{payload['llm_calls']} llm, {payload['sandbox_runs']} runs]",
+    ]
+    return lines
+
+
+def _final(payload: dict[str, object]) -> list[str]:
+    lines = ["", f"final     {payload.get('verdict', '')}".rstrip()]
+    if payload.get("reason"):
+        lines += _wrap(str(payload["reason"]))
+    lines.append(f"          {len(payload['findings'])} proven leak(s)")
+    for entry in payload.get("unproven", ()):
+        candidate = entry["candidate"]
+        status = _STATUS_LABEL.get(entry["status"], entry["status"])
+        lines.append(
+            f"          unproven: {candidate['leak_type']} line "
+            f"{candidate['line']} — {status}"
+        )
+    return lines
+
+
+def _wrap(text: str, width: int = 76) -> list[str]:
+    """Reasons are sentences, not labels, and a terminal is not infinitely wide."""
+    return [f"          {line}" for line in textwrap.wrap(text, width) or [""]]
 
 
 def _prove_result(payload: dict[str, object]) -> list[str]:
