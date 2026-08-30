@@ -23,11 +23,14 @@ frozen cases, three years of daily bars.
 | | pipeline | agent |
 |---|---|---|
 | leaks detected | 9/12 | **10/12** |
-| line localised | 7/12 | 7/12 |
-| leak type correct | 7/12 | 7/12 |
-| false positives | **0/8** | 1/8 |
-| localisation precision | **63.6%** | 58.3% |
+| line localised | 7/12 | **8/12** |
+| leak type correct | 7/12 | **8/12** |
+| false positives | 0/8 | 0/8 |
+| localisation precision | 63.6% | **66.7%** |
 | candidates reported on injected cases | 11 | 12 |
+
+The localisation sets reconcile exactly: pipeline gets `l01 l02 l04 l06 l07 l10
+l11`; the agent gets those same seven **plus `l05`**, and loses none.
 
 Per case, where the two differ:
 
@@ -36,15 +39,16 @@ Per case, where the two differ:
 | `l05_full_sample_zscore` | missed | **detected, localised, typed** | triage picks `expanding_stat`, which runs clean and moves Sharpe **+0.162** — the wrong way. The pipeline stops there. The agent retries and `rolling_stat` proves it at **−0.290**, on the ground-truth line. |
 | `l04_htf_merge` | 3 candidates | 2 candidates | one fewer redundant candidate on the same leak; still localised and typed. |
 | `l06_backward_fill` | 1 candidate | 2 candidates | the agent also proves the `L07` resample candidate at line 8; the correct type is still found at line 10. |
-| `c06_timeseries_split_pipeline` | clean | **false positive** | see below. |
-| `l10_random_split` | localised at line 25 | detected, not localised | see below. |
 
 **Spread over three passes: none.** detected `[10, 10, 10]`, localised
-`[7, 7, 7]`, false positives `[1, 1, 1]`. Each pass ran against its own prompt
-cache — 88, 79 and 78 prompts respectively — so all three genuinely paid for
+`[8, 8, 8]`, false positives `[0, 0, 0]`. Each pass ran against its own prompt
+cache — 91, 79 and 78 prompts respectively — so all three genuinely paid for
 their own answers rather than replaying the first. At temperature 0 the agent is
 stable on this suite. That is a measurement, not an assumption; `--repeat`
 rotates the cache directory precisely so it cannot become one.
+
+**Cost.** 183 LLM calls and 156 sandbox runs across 60 audits — 3.0 calls and
+2.6 runs per audit, against ceilings of 50 and 60.
 
 ### The behaviours that earn the loop
 
@@ -82,7 +86,10 @@ through.
 
 ## The numbers that hurt
 
-### One false positive, and it is the same root cause as two localisation losses
+### The bug that cost a false positive and two localisations, and how it was found
+
+The first agent run scored 11/12 detected but **1/8 false positives** and only
+6/12 localised. One defect explained all three losses.
 
 `c06_timeseries_split_pipeline` is a clean control: a legitimate ML pipeline
 with a chronological `TimeSeriesSplit` and an embargoed last training row. Its
@@ -94,28 +101,59 @@ target = (df["close"].shift(-1) > df["close"]).astype(int).reindex(features.inde
 
 That is a supervised training label. It is forward-looking **by definition** —
 that is what a label is — and it never reaches the decision except through
-`.fit()` on training folds. The scanner flags the `shift(-1)` (correctly: it is
-tuned for recall). Triage calls it a leak (incorrectly). Every operation triage
-proposes fails to apply, and the agent's mechanical sweep eventually reaches
-`future_shift`, which flips the label. The fitted model collapses, Sharpe falls
-0.994 → 0.822, and differential execution reports a proven leak.
+`.fit()` on training folds. The scanner flagged the `shift(-1)` (correctly: it
+is tuned for recall). Triage called it a leak (incorrectly). Every operation
+triage proposed failed to apply, and the mechanical sweep reached
+`future_shift`, which flips the label. The fitted model collapsed, Sharpe fell
+0.994 → 0.822, and differential execution reported a proven leak.
 
 **A falling Sharpe is a weaker fact than it looks.** Corrupting a legitimate
 input deflates a strategy exactly the way removing a leak does, and the
 execution test cannot tell the two apart.
 
-The same mechanism costs two localisations:
+It also *hid* the real leaks. On `l11`, measured directly — one variable
+changed, everything else identical:
 
-- `l10_random_split`: the label patch takes Sharpe 3.438 → 0.209. The real leak
-  (`shuffle=True`, line 25) is then invisible — a model fed a broken label no
-  longer responds to anything, so removing the real leak measures `no_effect`.
-  Detected, but at the wrong line.
-- `l11_preprocess_before_split`: the same shape, 2.031 → 0.353, before the gate
-  below caught it.
+| | Sharpe | delta against its own baseline |
+|---|---|---|
+| `l11` untouched | 2.0305 | — |
+| ⤷ `fit_in_fold` at line 31 (the real leak, ground-truth line) | 1.1173 | **−0.913 → proven** |
+| `l11` with the label flipped (`future_shift` at line 28) | 0.3530 | — |
+| ⤷ `fit_in_fold` at line 31 | 0.3530 | **−0.0000 → no effect** |
 
-The pipeline scores 0/8 here **because it gives up after one attempt**. Its
-clean sheet on false positives is bought with the same fragility that loses it
-`l05`. That is the trade the agent makes, stated plainly.
+Not merely weakened — annihilated to exactly zero. A `SelectKBest` fitted on an
+uninformative label picks the same four features whether or not it saw the test
+fold, so the leak it exists to have becomes unmeasurable. `l10` fails the same
+way: after the label patch takes Sharpe 3.438 → 0.209, removing the actual
+`shuffle=True` measures nothing.
+
+### The fix: reachability, not a prompt
+
+`scan_file` now follows where a forward-looking value goes. **A value absorbed
+by `.fit()` is training data; a value that reaches the decision by any other
+route is a feature.** Least fixed point outward from the fit calls, so the label
+is still recognised when it passes through `train_test_split` first, as in
+`l10` — hard-coding that call name would have made this a rule about
+scikit-learn's API instead of a rule about where information flows.
+
+Measured across all twenty cases, before and after the exemption, with
+everything else held constant:
+
+| | detected | localised | type | false positives | precision |
+|---|---|---|---|---|---|
+| agent, before | 10/12 | 7/12 | 7/12 | 1/8 | 58.3% |
+| agent, after | 10/12 | **8/12** | **8/12** | **0/8** | **66.7%** |
+
+`c06` returns to clean — both remaining candidates are triaged as not leaks and
+nothing is proven. `l10` now proves its real leak at the ground-truth line 25
+(`shuffle=True` → `shuffle=False`, Sharpe 3.438 → 0.974, delta **−2.463**), and
+`l11` keeps line 31. The pipeline's numbers are unchanged by the exemption,
+because it never proved those label candidates anyway — it gives up after one
+attempt.
+
+**The discrimination is what matters.** `l08`'s `forward_max` and `c03`'s
+reporting column are built identically to a label and are *not* exempted,
+because neither reaches a `.fit()` call. The rule cannot key off the shift.
 
 ### The experiment: LLM self-critique of its own findings
 
@@ -125,31 +163,32 @@ could become a finding, with the diff and the delta in front of it: *did this
 remove information the strategy was not entitled to, or corrupt something it
 was?*
 
-Measured on all twenty cases, before and after:
+Measured on all twenty cases, before the reachability fix existed:
 
 | | detected | localised | type | false positives | precision |
 |---|---|---|---|---|---|
 | agent, no confirmation gate | 11/12 | 6/12 | 6/12 | 1/8 | 46.2% |
 | agent, with the gate | 10/12 | 7/12 | 7/12 | 1/8 | 58.3% |
 
-**The gate gives opposite answers to the same question.** On `l11` it correctly
+**The gate gave opposite answers to the same question.** On `l11` it correctly
 rejected the label patch ("modified the supervised training label, which is
 inherently forward-looking") and went on to prove the real `L11` leak at the
 ground-truth line. On `c06` and `l10` it accepted the identical construction. On
 `l08` it rejected a genuine repair — `forward_max` is not a label, it feeds the
 signal directly — and cost a detection.
 
-One correct call, one wrong call and two misses, across four instances of one
-question. The gate is kept because it improves localisation and precision at no
-cost in false positives, but it is **not** load-bearing and must not be
-described as a safeguard. An LLM judgement inside the proof path is exactly the
-kind of confident, plausible, unverifiable claim this project exists to refuse.
+**Its ledger is now worse, because the deterministic rule took its one win.**
+Across all 60 audits of the final three-pass run the gate fires exactly six
+times, all six on `l08`, and every one of them is wrong. Its only remaining
+measured effect on the whole suite is to suppress one correct finding. The label
+cases it used to help are handled in `scan_file` before a candidate is ever
+generated.
 
-**The deterministic fix, not yet built:** a forward-looking name whose only
-consumer is the target argument of `.fit()` is a training label and must not be
-patched. That is static reachability, it is decidable, and it would address
-`c06`, `l10` and `l11` without touching `l08`. It belongs in `scan_file`, not in
-a prompt.
+That is the case for deleting it, and the numbers say so plainly: an LLM
+judgement inside the proof path is exactly the kind of confident, plausible,
+unverifiable claim this project exists to refuse. It survives in the code only
+because removing it is a change that has not yet been measured end to end;
+nothing here should be read as a safeguard.
 
 ### What remains unproven
 
@@ -162,6 +201,10 @@ a prompt.
 - **`l12` cannot be detected at all.** There is no L12 rule in `scan_file`, so
   the scanner emits no candidate on its ground-truth line. It is a miss with a
   known cause, not a near-miss.
+- **`l08` is detected by neither.** The scanner offers `L01@7`, and the
+  confirmation gate above rejects the only repair that proves it. Removing the
+  gate returns `l08` to detected at the cost of one candidate's worth of
+  precision; that trade has not been run end to end and so is not claimed here.
 - **`l03` and `l09` are detected but not localised**, and this is partly an
   argument with the ground truth rather than a failure. On `l03` the agent
   patches line 8 (`signal = close > sma`); `meta.json` names line 9, the

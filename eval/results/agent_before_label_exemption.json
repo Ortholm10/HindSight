@@ -4,11 +4,11 @@
   "repeat": 3,
   "detected": 10,
   "injected_total": 12,
-  "localised": 8,
-  "type_correct": 8,
-  "false_positives": 0,
+  "localised": 7,
+  "type_correct": 7,
+  "false_positives": 1,
   "clean_total": 8,
-  "localisation_precision": 0.6666666666666666,
+  "localisation_precision": 0.5833333333333334,
   "candidates_on_injected": 12,
   "cases": [
     {
@@ -75,7 +75,7 @@
       "case_id": "c06_timeseries_split_pipeline",
       "kind": "clean",
       "leak_type": null,
-      "candidates": 0,
+      "candidates": 1,
       "detected": false,
       "localised": false,
       "type_correct": false,
@@ -225,9 +225,9 @@
       "leak_type": "L10",
       "candidates": 1,
       "detected": true,
-      "localised": true,
-      "type_correct": true,
-      "on_ground_truth": 1,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
       "sharpe_delta": 2.463245946843668,
       "known_limitations": []
     },
@@ -262,11 +262,11 @@
     {
       "detected": 10,
       "injected_total": 12,
-      "localised": 8,
-      "type_correct": 8,
-      "false_positives": 0,
+      "localised": 7,
+      "type_correct": 7,
+      "false_positives": 1,
       "clean_total": 8,
-      "localisation_precision": 0.6666666666666666,
+      "localisation_precision": 0.5833333333333334,
       "candidates_on_injected": 12,
       "cases": [
         {
@@ -333,7 +333,7 @@
           "case_id": "c06_timeseries_split_pipeline",
           "kind": "clean",
           "leak_type": null,
-          "candidates": 0,
+          "candidates": 1,
           "detected": false,
           "localised": false,
           "type_correct": false,
@@ -483,9 +483,9 @@
           "leak_type": "L10",
           "candidates": 1,
           "detected": true,
-          "localised": true,
-          "type_correct": true,
-          "on_ground_truth": 1,
+          "localised": false,
+          "type_correct": false,
+          "on_ground_truth": 0,
           "sharpe_delta": 2.463245946843668,
           "known_limitations": []
         },
@@ -520,11 +520,11 @@
     {
       "detected": 10,
       "injected_total": 12,
-      "localised": 8,
-      "type_correct": 8,
-      "false_positives": 0,
+      "localised": 7,
+      "type_correct": 7,
+      "false_positives": 1,
       "clean_total": 8,
-      "localisation_precision": 0.6666666666666666,
+      "localisation_precision": 0.5833333333333334,
       "candidates_on_injected": 12,
       "cases": [
         {
@@ -591,7 +591,7 @@
           "case_id": "c06_timeseries_split_pipeline",
           "kind": "clean",
           "leak_type": null,
-          "candidates": 0,
+          "candidates": 1,
           "detected": false,
           "localised": false,
           "type_correct": false,
@@ -741,9 +741,9 @@
           "leak_type": "L10",
           "candidates": 1,
           "detected": true,
-          "localised": true,
-          "type_correct": true,
-          "on_ground_truth": 1,
+          "localised": false,
+          "type_correct": false,
+          "on_ground_truth": 0,
           "sharpe_delta": 2.463245946843668,
           "known_limitations": []
         },
@@ -778,11 +778,11 @@
     {
       "detected": 10,
       "injected_total": 12,
-      "localised": 8,
-      "type_correct": 8,
-      "false_positives": 0,
+      "localised": 7,
+      "type_correct": 7,
+      "false_positives": 1,
       "clean_total": 8,
-      "localisation_precision": 0.6666666666666666,
+      "localisation_precision": 0.5833333333333334,
       "candidates_on_injected": 12,
       "cases": [
         {
@@ -849,7 +849,7 @@
           "case_id": "c06_timeseries_split_pipeline",
           "kind": "clean",
           "leak_type": null,
-          "candidates": 0,
+          "candidates": 1,
           "detected": false,
           "localised": false,
           "type_correct": false,
@@ -999,9 +999,9 @@
           "leak_type": "L10",
           "candidates": 1,
           "detected": true,
-          "localised": true,
-          "type_correct": true,
-          "on_ground_truth": 1,
+          "localised": false,
+          "type_correct": false,
+          "on_ground_truth": 0,
           "sharpe_delta": 2.463245946843668,
           "known_limitations": []
         },
@@ -1045,30 +1045,30 @@
       ]
     },
     "localised": {
-      "min": 8,
-      "max": 8,
+      "min": 7,
+      "max": 7,
       "values": [
-        8,
-        8,
-        8
+        7,
+        7,
+        7
       ]
     },
     "type_correct": {
-      "min": 8,
-      "max": 8,
+      "min": 7,
+      "max": 7,
       "values": [
-        8,
-        8,
-        8
+        7,
+        7,
+        7
       ]
     },
     "false_positives": {
-      "min": 0,
-      "max": 0,
+      "min": 1,
+      "max": 1,
       "values": [
-        0,
-        0,
-        0
+        1,
+        1,
+        1
       ]
     },
     "candidates_on_injected": {
