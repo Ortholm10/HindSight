@@ -375,22 +375,22 @@ def test_a_candidate_on_an_argument_line_still_patches_its_call(tmp_path):
     assert _runs(tmp_path, result.patched_source) is not SandboxOutcome.CRASHED
 
 
-BOUNDARY_SOURCE = '''import pandas as pd
+BOUNDARY_SOURCE = """import pandas as pd
 
 
 def run_positions(df):
     forward_max = df["close"].rolling(10).max().shift(-10)
     signal = forward_max > df["close"] * 1.05
     return signal
-'''
+"""
 
-NO_FORWARD_SOURCE = '''import pandas as pd
+NO_FORWARD_SOURCE = """import pandas as pd
 
 
 def run_positions(df):
     signal = df["close"] > df["open"]
     return signal
-'''
+"""
 
 
 def test_drop_column_reports_the_vocabulary_boundary_when_the_signal_is_the_leak(
