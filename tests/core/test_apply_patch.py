@@ -337,3 +337,39 @@ def test_rolling_stat_bounds_a_full_sample_statistic_to_a_window(tmp_path):
     assert result.ok, result.error
     assert "spread.rolling(40, min_periods=20).quantile(0.15)" in result.patched_source
     assert _runs(tmp_path, result.patched_source) is not SandboxOutcome.CRASHED
+
+
+MULTILINE_TARGET = (
+    """import pandas as pd
+from sklearn.model_selection import train_test_split
+
+
+def run_positions(df):
+    features = pd.DataFrame({"r1": df["close"].pct_change()}).dropna()
+    target = (df["close"] > 0).astype(int).reindex(features.index)
+    a, b, c, d = train_test_split(
+        features,
+        target,
+        test_size=0.5,
+        shuffle=True,
+    )
+    hit = features["r1"] > a["r1"].mean()
+    return hit.reindex(df.index).fillna(False).astype(int).shift(1).fillna(0)
+"""
+    + TAIL
+)
+
+
+def test_a_candidate_on_an_argument_line_still_patches_its_call(tmp_path):
+    """scan_file names the argument's line; apply_patch must find its call.
+
+    The two tools have to agree on what a line refers to. When the scanner
+    started naming `shuffle=True` on line 12 instead of the call opening on
+    line 9, every transform keyed to the opening line silently stopped
+    applying - the repair became unreachable without a single test failing.
+    """
+    _, result = _patch(tmp_path, MULTILINE_TARGET, 12, "chronological_split")
+
+    assert result.ok, result.error
+    assert "shuffle=False" in result.patched_source
+    assert _runs(tmp_path, result.patched_source) is not SandboxOutcome.CRASHED

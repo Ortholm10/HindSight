@@ -84,11 +84,19 @@ class _Repair(cst.CSTTransformer):
         self.forward_names = forward_names
         self.applied = False
 
-    def _starts_here(self, node: cst.CSTNode) -> bool:
-        return self.get_metadata(PositionProvider, node).start.line == self.line
+    def _covers_line(self, node: cst.CSTNode) -> bool:
+        """True when the candidate's line falls anywhere inside this node.
+
+        Not just its first line. scan_file names the line of the argument that
+        carries the leak, which for a multi-line call sits below the line the
+        call opens on — so keying the transform to the opening line makes the
+        repair unreachable for exactly the calls big enough to need one.
+        """
+        position = self.get_metadata(PositionProvider, node)
+        return position.start.line <= self.line <= position.end.line
 
     def leave_Call(self, original: cst.Call, updated: cst.Call) -> cst.BaseExpression:
-        if self.applied or not self._starts_here(original):
+        if self.applied or not self._covers_line(original):
             return updated
         # Both call shapes matter: pandas repairs are methods (`x.resample`),
         # but train_test_split is imported and called bare.
@@ -177,7 +185,7 @@ class _Repair(cst.CSTTransformer):
         return updated
 
     def leave_Assign(self, original: cst.Assign, updated: cst.Assign) -> cst.Assign:
-        if self.applied or not self._starts_here(original):
+        if self.applied or not self._covers_line(original):
             return updated
 
         if self.operation == "lag":

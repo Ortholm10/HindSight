@@ -1,14 +1,14 @@
 {
   "suite": "all",
   "detector": "pipeline",
-  "detected": 9,
+  "detected": 8,
   "injected_total": 12,
   "localised": 6,
   "type_correct": 6,
   "false_positives": 0,
   "clean_total": 8,
-  "localisation_precision": 0.5454545454545454,
-  "candidates_on_injected": 11,
+  "localisation_precision": 0.6,
+  "candidates_on_injected": 10,
   "cases": [
     {
       "case_id": "c01_lagged_crossover",
@@ -222,8 +222,8 @@
       "case_id": "l10_random_split",
       "kind": "injected",
       "leak_type": "L10",
-      "candidates": 1,
-      "detected": true,
+      "candidates": 0,
+      "detected": false,
       "localised": false,
       "type_correct": false,
       "on_ground_truth": 0,
