@@ -64,11 +64,19 @@ class _Scan(ast.NodeVisitor):
 
         if name == "shift" and _is_negative(node.args[0] if node.args else None):
             self._add(
-                "L01", line, "shift() with a negative period reads the future", 0.9
+                "L01",
+                _at(node.args[0], line),
+                "shift() with a negative period reads the future",
+                0.9,
             )
 
         if name == "rolling" and _is_true(keywords.get("center")):
-            self._add("L02", line, "rolling(center=True) spans bars after the row", 0.9)
+            self._add(
+                "L02",
+                _at(keywords.get("center"), line),
+                "rolling(center=True) spans bars after the row",
+                0.9,
+            )
 
         if name in _FULL_SAMPLE_STATS and not _reached_through_window(node.func):
             self._add(
@@ -95,7 +103,12 @@ class _Scan(ast.NodeVisitor):
             )
 
         if name == "train_test_split" and not _is_false(keywords.get("shuffle")):
-            self._add("L10", line, "a shuffled split mixes later rows into train", 0.8)
+            self._add(
+                "L10",
+                _at(keywords.get("shuffle"), line),
+                "a shuffled split mixes later rows into train",
+                0.8,
+            )
 
         if name in _FIT:
             self._add("L11", line, f"{name}() fitted here may see the test fold", 0.4)
@@ -124,6 +137,18 @@ class _Scan(ast.NodeVisitor):
                     0.5,
                 )
         self.generic_visit(node)
+
+
+def _at(node: ast.expr | None, fallback: int) -> int:
+    """The line of the argument that carries the leak, not the call's first line.
+
+    A multi-line call spans lines that are almost all innocent. Pointing a
+    reader — or a patch — at `train_test_split(` says nothing; `shuffle=True`
+    four lines below is the whole finding. Falls back to the call when no single
+    argument is responsible, which is the case for leaks of ABSENCE: a bare
+    `resample()` has no offending argument to name.
+    """
+    return fallback if node is None else node.lineno
 
 
 def _is_negative(node: ast.expr | None) -> bool:

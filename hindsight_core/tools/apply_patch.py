@@ -30,6 +30,7 @@ OPERATIONS = (
     "trailing_window",
     "forward_fill",
     "expanding_stat",
+    "rolling_stat",
     "resample_label",
     "drop_column",
     "fit_in_fold",
@@ -53,6 +54,15 @@ _FULL_SAMPLE_STATS = (
     "cov",
 )
 _WINDOWED = ("rolling", "expanding", "ewm", "groupby", "resample", "shift")
+
+# Taxonomy 7 offers two causal replacements for a full-sample statistic, and
+# they are not interchangeable: expanding() keeps every row it has ever seen,
+# rolling(n) forgets. Which one restores a given strategy is a question for the
+# prover, so the vocabulary carries both rather than picking a favourite.
+_STAT_WINDOWS = {
+    "expanding_stat": "expanding(min_periods=20)",
+    "rolling_stat": "rolling(40, min_periods=20)",
+}
 
 # The training fold is named, never computed here: `split` already exists in
 # the audited code. Deriving our own boundary would be inventing a value, and
@@ -104,14 +114,13 @@ class _Repair(cst.CSTTransformer):
                 kept[-1] = kept[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
                 return updated.with_changes(args=kept)
 
-        if self.operation == "expanding_stat" and name in _FULL_SAMPLE_STATS:
+        if self.operation in _STAT_WINDOWS and name in _FULL_SAMPLE_STATS:
             if isinstance(updated.func, cst.Attribute) and not _windowed(updated.func):
                 self.applied = True
                 receiver = _code(updated.func.value)
+                window = _STAT_WINDOWS[self.operation]
                 return updated.with_changes(
-                    func=cst.parse_expression(
-                        f"{receiver}.expanding(min_periods=20).{name}"
-                    )
+                    func=cst.parse_expression(f"{receiver}.{window}.{name}")
                 )
 
         if self.operation == "resample_label" and name == "resample":

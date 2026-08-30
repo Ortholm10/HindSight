@@ -242,6 +242,7 @@ def test_the_vocabulary_covers_every_taxonomy_operation():
         "trailing_window",
         "forward_fill",
         "expanding_stat",
+        "rolling_stat",
         "resample_label",
         "drop_column",
         "fit_in_fold",
@@ -307,3 +308,32 @@ def test_an_operation_that_cannot_express_the_repair_fails_cleanly(tmp_path):
     assert not result.ok
     assert result.patched_source == source
     assert "drop_column" in result.error
+
+
+ROLLING_STAT = (
+    """import pandas as pd
+
+
+def run_positions(df):
+    closes = df["close"]
+    spread = closes / closes.rolling(20).mean() - 1
+    cutoff = spread.quantile(0.15)
+    raw = spread < cutoff
+    return raw.shift(1).fillna(False).astype(int)
+"""
+    + TAIL
+)
+
+
+def test_rolling_stat_bounds_a_full_sample_statistic_to_a_window(tmp_path):
+    """Taxonomy 7 allows expanding() OR rolling(n) for a full-sample statistic.
+
+    They are not interchangeable in effect: an expanding quantile keeps every
+    row ever seen, a rolling one forgets. l05's validated fix is the rolling
+    form, so the vocabulary has to be able to say it.
+    """
+    _, result = _patch(tmp_path, ROLLING_STAT, 7, "rolling_stat")
+
+    assert result.ok, result.error
+    assert "spread.rolling(40, min_periods=20).quantile(0.15)" in result.patched_source
+    assert _runs(tmp_path, result.patched_source) is not SandboxOutcome.CRASHED

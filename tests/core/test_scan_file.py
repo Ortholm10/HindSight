@@ -92,3 +92,63 @@ def test_l04_stays_silent_on_the_control_that_lags_before_the_merge():
     candidates = scan_file(CASES / "c04_lagged_asof_merge" / "strategy.py")
 
     assert [c for c in candidates if c.leak_type == "L04"] == []
+
+
+MULTILINE_SPLIT = """import pandas as pd
+from sklearn.model_selection import train_test_split
+
+
+def run_positions(df):
+    features = pd.DataFrame({"r1": df["close"].pct_change()}).dropna()
+    target = (df["close"] > 0).astype(int).reindex(features.index)
+    a, b, c, d = train_test_split(
+        features,
+        target,
+        test_size=0.5,
+        shuffle=True,
+    )
+    return a
+"""
+
+MULTILINE_ROLLING = """import pandas as pd
+
+
+def run_positions(df):
+    sma = df["close"].rolling(
+        20,
+        min_periods=5,
+        center=True,
+    ).mean()
+    return sma
+"""
+
+
+def test_a_candidate_names_the_argument_line_not_the_call_line(tmp_path):
+    """A multi-line call spans many lines; only one of them carries the leak.
+
+    Naming the opening line points a reader at `train_test_split(`, which is
+    not the problem - `shuffle=True` four lines down is. The rule is general:
+    where one argument is the trigger, that argument's line is the candidate's.
+    """
+    path = tmp_path / "split.py"
+    path.write_text(MULTILINE_SPLIT, "utf-8")
+    source = MULTILINE_SPLIT.splitlines()
+
+    l10 = [c for c in scan_file(path) if c.leak_type == "L10"]
+
+    assert l10, "no L10 candidate proposed"
+    assert source[l10[0].line - 1].strip() == "shuffle=True,"
+
+
+def test_the_argument_line_rule_holds_for_a_different_rule_and_call_shape(tmp_path):
+    """Generality check, deliberately not the shape that motivated the rule:
+    a different leak type, a different call, and two unrelated arguments
+    sitting between the opening line and the offending one."""
+    path = tmp_path / "rolling.py"
+    path.write_text(MULTILINE_ROLLING, "utf-8")
+    source = MULTILINE_ROLLING.splitlines()
+
+    l02 = [c for c in scan_file(path) if c.leak_type == "L02"]
+
+    assert l02, "no L02 candidate proposed"
+    assert source[l02[0].line - 1].strip() == "center=True,"
