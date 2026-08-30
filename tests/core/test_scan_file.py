@@ -64,3 +64,31 @@ def test_an_unparseable_file_yields_no_candidates_rather_than_crashing(tmp_path)
     path.write_text("def oops(:\n    pass\n", "utf-8")
 
     assert scan_file(path) == []
+
+
+CASES = Path(__file__).resolve().parents[2] / "eval" / "cases"
+
+
+def test_l04_fires_on_an_unlagged_higher_timeframe_merge():
+    """The HTF chain reaches merge_asof with no shift anywhere along it.
+
+    Over-production is intended here - several links of the chain are flagged -
+    but the ground-truth line must be among them, because the prover can only
+    disprove candidates it was given.
+    """
+    candidates = scan_file(CASES / "l04_htf_merge" / "strategy.py")
+    l04 = [c for c in candidates if c.leak_type == "L04"]
+
+    assert l04, "no L04 candidate proposed"
+    assert 13 in [c.line for c in l04]
+
+
+def test_l04_stays_silent_on_the_control_that_lags_before_the_merge():
+    """c04 differs by one token: weekly_sma.shift(1) before the join.
+
+    A rule that cannot see that token would flag the correct code too, and a
+    detector that flags everything scores zero on the false-positive metric.
+    """
+    candidates = scan_file(CASES / "c04_lagged_asof_merge" / "strategy.py")
+
+    assert [c for c in candidates if c.leak_type == "L04"] == []

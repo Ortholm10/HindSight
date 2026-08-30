@@ -399,3 +399,33 @@ def test_two_runs_of_the_same_stochastic_strategy_agree(make_script, data_path):
 
     assert first.outcome is SandboxOutcome.COMPLETED, first.stderr
     assert first.metrics == second.metrics
+
+
+IMPORTS_SKLEARN = """
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier  # noqa: F401
+
+
+def run_positions(df):
+    sma = df["close"].rolling(3).mean()
+    return (df["close"] > sma).shift(1).fillna(False).astype(int)
+
+
+def run_strategy(df):
+    returns = run_positions(df) * df["close"].pct_change()
+    return (1 + returns.fillna(0)).cumprod()
+"""
+
+
+def test_scikit_learn_imports_inside_the_sandbox(make_script, data_path):
+    """The library the containment bug actually broke, not a stand-in.
+
+    sklearn reaches ssl through joblib and asyncio, and ssl subclasses
+    socket.socket. A guard that is not a class made every sklearn strategy
+    CRASH before it traded - a tool-induced failure wearing the same face as a
+    genuinely broken strategy, which is the confusion the four outcomes exist
+    to prevent.
+    """
+    record = run_sandboxed(make_script(IMPORTS_SKLEARN), data_path, timeout_s=180)
+
+    assert record.outcome is SandboxOutcome.COMPLETED, record.stderr

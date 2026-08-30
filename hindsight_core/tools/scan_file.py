@@ -174,6 +174,64 @@ def _contains_shift(node: ast.expr) -> bool:
     )
 
 
+def _htf_chain(tree: ast.Module) -> tuple[dict[str, int], bool]:
+    """Assignments carrying a resampled series, and whether any of them lags it.
+
+    L04 cannot be judged one line at a time. The leak is that a higher-timeframe
+    series reaches an as-of merge while its current bar is still open, and the
+    repair is a single `.shift(1)` anywhere along the chain that builds it. So
+    the chain is followed transitively from the `resample()` that starts it, and
+    one lag found anywhere clears the whole thing - which is exactly the one
+    token separating case l04 from its control.
+    """
+    assigns = sorted(
+        (n for n in ast.walk(tree) if isinstance(n, ast.Assign)),
+        key=lambda n: n.lineno,
+    )
+    carriers: dict[str, int] = {}
+    lagged = False
+    for node in assigns:
+        targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        if not targets:
+            continue
+        names = {n.id for n in ast.walk(node.value) if isinstance(n, ast.Name)}
+        from_resample = any(
+            isinstance(c, ast.Call)
+            and isinstance(c.func, ast.Attribute)
+            and c.func.attr == "resample"
+            for c in ast.walk(node.value)
+        )
+        if not from_resample and not (names & carriers.keys()):
+            continue
+        # The walk stops at the join. Only a lag applied BEFORE the merge can
+        # repair this leak; a shift further down the signal path acts on an
+        # already-contaminated series, and counting it would clear the very
+        # case this rule exists to catch.
+        if _merges_as_of(node.value):
+            break
+        if _contains_shift(node.value):
+            lagged = True
+        for target in targets:
+            carriers[target] = node.lineno
+    return carriers, lagged
+
+
+def _merges_as_of(tree: ast.AST) -> bool:
+    """The join that makes an open higher-timeframe bar reachable at all.
+
+    Gating on it keeps this rule off every file that merely resamples: without
+    a merge back to the base frame there is no row t to contaminate.
+    """
+    return any(
+        isinstance(n, ast.Call)
+        and (
+            (isinstance(n.func, ast.Attribute) and n.func.attr == "merge_asof")
+            or (isinstance(n.func, ast.Name) and n.func.id == "merge_asof")
+        )
+        for n in ast.walk(tree)
+    )
+
+
 def scan_file(path: Path) -> list[LeakCandidate]:
     """Candidates ordered by line. An unparseable file yields none rather than
     raising: the agent loop must survive input that does not compile."""
@@ -184,4 +242,16 @@ def scan_file(path: Path) -> list[LeakCandidate]:
         return []
     scan = _Scan(source, path)
     scan.visit(tree)
+
+    carriers, lagged = _htf_chain(tree)
+    if carriers and not lagged and _merges_as_of(tree):
+        for name, line in carriers.items():
+            scan._add(
+                "L04",
+                line,
+                f"{name} carries a resampled series into an as-of merge with no "
+                "lag, so row t can read a higher-timeframe bar still open",
+                0.5,
+            )
+
     return sorted(scan.found.values(), key=lambda c: (c.line, c.leak_type))

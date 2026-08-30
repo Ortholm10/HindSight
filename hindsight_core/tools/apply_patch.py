@@ -11,6 +11,7 @@ a sandbox copy, so a failed transform cannot leave a half-edited file behind.
 
 from __future__ import annotations
 
+import ast
 import difflib
 from pathlib import Path
 
@@ -19,17 +20,58 @@ from libcst.metadata import MetadataWrapper, PositionProvider
 
 from hindsight_core.models import LeakCandidate, PatchResult
 
-OPERATIONS = ("future_shift", "lag", "trailing_window", "forward_fill")
+# The closed vocabulary, one entry per patchable row of docs/taxonomy.md 7.
+# L12 has no entry on purpose: the taxonomy marks a hindsight universe
+# detectable but not patchable, and inventing a repair for it would manufacture
+# a proof the taxonomy says cannot exist.
+OPERATIONS = (
+    "future_shift",
+    "lag",
+    "trailing_window",
+    "forward_fill",
+    "expanding_stat",
+    "resample_label",
+    "drop_column",
+    "fit_in_fold",
+    "chronological_split",
+)
 
 _BFILL = ("bfill", "backfill")
+
+# Statistics that consume every row handed to them. Legitimate once a window
+# already bounds the input, a leak over the full sample.
+_FULL_SAMPLE_STATS = (
+    "mean",
+    "std",
+    "var",
+    "min",
+    "max",
+    "sum",
+    "median",
+    "quantile",
+    "corr",
+    "cov",
+)
+_WINDOWED = ("rolling", "expanding", "ewm", "groupby", "resample", "shift")
+
+# The training fold is named, never computed here: `split` already exists in
+# the audited code. Deriving our own boundary would be inventing a value, and
+# a missing name surfaces honestly as a crashed run rather than a silent one.
+_FOLD = ".iloc[:split]"
 
 
 class _Repair(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (PositionProvider,)
 
-    def __init__(self, line: int, operation: str) -> None:
+    def __init__(
+        self,
+        line: int,
+        operation: str,
+        forward_names: frozenset[str] = frozenset(),
+    ) -> None:
         self.line = line
         self.operation = operation
+        self.forward_names = forward_names
         self.applied = False
 
     def _starts_here(self, node: cst.CSTNode) -> bool:
@@ -38,9 +80,14 @@ class _Repair(cst.CSTTransformer):
     def leave_Call(self, original: cst.Call, updated: cst.Call) -> cst.BaseExpression:
         if self.applied or not self._starts_here(original):
             return updated
-        name = (
-            updated.func.attr.value if isinstance(updated.func, cst.Attribute) else ""
-        )
+        # Both call shapes matter: pandas repairs are methods (`x.resample`),
+        # but train_test_split is imported and called bare.
+        if isinstance(updated.func, cst.Attribute):
+            name = updated.func.attr.value
+        elif isinstance(updated.func, cst.Name):
+            name = updated.func.value
+        else:
+            name = ""
 
         if self.operation == "future_shift" and name == "shift":
             args = list(updated.args)
@@ -56,6 +103,54 @@ class _Repair(cst.CSTTransformer):
                 self.applied = True
                 kept[-1] = kept[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
                 return updated.with_changes(args=kept)
+
+        if self.operation == "expanding_stat" and name in _FULL_SAMPLE_STATS:
+            if isinstance(updated.func, cst.Attribute) and not _windowed(updated.func):
+                self.applied = True
+                receiver = _code(updated.func.value)
+                return updated.with_changes(
+                    func=cst.parse_expression(
+                        f"{receiver}.expanding(min_periods=20).{name}"
+                    )
+                )
+
+        if self.operation == "resample_label" and name == "resample":
+            if not {_keyword(a) for a in updated.args} & {"label", "closed"}:
+                self.applied = True
+                kept = [
+                    a.with_changes(comma=cst.MaybeSentinel.DEFAULT)
+                    for a in updated.args
+                ]
+                return updated.with_changes(
+                    args=[*kept, _kwarg("label", "right"), _kwarg("closed", "right")]
+                )
+
+        if self.operation == "fit_in_fold" and name == "fit":
+            if any(a.keyword is None for a in updated.args):
+                self.applied = True
+                return updated.with_changes(
+                    args=[
+                        a.with_changes(
+                            value=cst.parse_expression(_code(a.value) + _FOLD),
+                            comma=cst.MaybeSentinel.DEFAULT,
+                        )
+                        if a.keyword is None
+                        else a.with_changes(comma=cst.MaybeSentinel.DEFAULT)
+                        for a in updated.args
+                    ]
+                )
+
+        if self.operation == "chronological_split" and name == "train_test_split":
+            args = [
+                a.with_changes(comma=cst.MaybeSentinel.DEFAULT) for a in updated.args
+            ]
+            for i, arg in enumerate(args):
+                if _keyword(arg) == "shuffle":
+                    self.applied = True
+                    args[i] = arg.with_changes(value=cst.Name("False"))
+                    return updated.with_changes(args=args)
+            self.applied = True
+            return updated.with_changes(args=[*args, _kwarg("shuffle", None)])
 
         if self.operation == "forward_fill":
             if name in _BFILL:
@@ -73,11 +168,139 @@ class _Repair(cst.CSTTransformer):
         return updated
 
     def leave_Assign(self, original: cst.Assign, updated: cst.Assign) -> cst.Assign:
-        if self.applied or self.operation != "lag" or not self._starts_here(original):
+        if self.applied or not self._starts_here(original):
             return updated
-        code = cst.Module(body=()).code_for_node(updated.value)
-        self.applied = True
-        return updated.with_changes(value=cst.parse_expression(f"({code}).shift(1)"))
+
+        if self.operation == "lag":
+            self.applied = True
+            code = _code(updated.value)
+            return updated.with_changes(
+                value=cst.parse_expression(f"({code}).shift(1)")
+            )
+
+        if self.operation == "drop_column":
+            kept = _without_forward_operands(updated.value, self.forward_names)
+            if kept is not None:
+                self.applied = True
+                return updated.with_changes(value=kept)
+
+        return updated
+
+
+def _code(node: cst.CSTNode) -> str:
+    return cst.Module(body=()).code_for_node(node)
+
+
+def _kwarg(name: str, text: str | None) -> cst.Arg:
+    """A keyword argument rendered as `name=value`, no spaces around the `=`.
+
+    `text` is a plain string for a string literal and None for `False`; nothing
+    here accepts a caller-supplied expression, so no operation can smuggle in a
+    computed value.
+    """
+    value = cst.Name("False") if text is None else cst.SimpleString(f'"{text}"')
+    return cst.Arg(
+        keyword=cst.Name(name),
+        value=value,
+        equal=cst.AssignEqual(
+            whitespace_before=cst.SimpleWhitespace(""),
+            whitespace_after=cst.SimpleWhitespace(""),
+        ),
+        comma=cst.MaybeSentinel.DEFAULT,
+    )
+
+
+def _windowed(func: cst.Attribute) -> bool:
+    """True for `x.rolling(20).mean()` - a window already bounds the stat."""
+    inner = func.value
+    return (
+        isinstance(inner, cst.Call)
+        and isinstance(inner.func, cst.Attribute)
+        and inner.func.attr.value in _WINDOWED
+    )
+
+
+def _operands(node: cst.BaseExpression) -> list[cst.BaseExpression]:
+    """Flatten `a & b & c` into its leaves.
+
+    Pandas masks combine with & and |, which parse as BinaryOperation. `and`
+    and `or` never appear on a Series mask - they would raise - so the boolean
+    operators are deliberately not handled here.
+    """
+    if isinstance(node, cst.BinaryOperation) and isinstance(
+        node.operator, cst.BitAnd | cst.BitOr
+    ):
+        return _operands(node.left) + _operands(node.right)
+    return [node]
+
+
+def _without_forward_operands(
+    value: cst.BaseExpression, forward_names: frozenset[str]
+) -> cst.BaseExpression | None:
+    """Drop the conjuncts that read a forward-looking column, keep the rest.
+
+    None when the removal cannot be made honestly: nothing to drop, or
+    everything would go. A signal that IS the leaking comparison cannot be
+    repaired by removal - rebuilding it needs a substitute column, and choosing
+    one is a judgement rather than a deletion.
+    """
+    parts = _operands(value)
+    if len(parts) < 2:
+        return None
+    kept = [p for p in parts if not (_names_in(p) & forward_names)]
+    if not kept or len(kept) == len(parts):
+        return None
+    joined = kept[0]
+    for part in kept[1:]:
+        joined = cst.BinaryOperation(left=joined, operator=cst.BitAnd(), right=part)
+    return joined
+
+
+def _names_in(node: cst.CSTNode) -> set[str]:
+    found: set[str] = set()
+
+    class _Walk(cst.CSTVisitor):
+        def visit_Name(self, node: cst.Name) -> None:
+            found.add(node.value)
+
+    node.visit(_Walk())
+    return found
+
+
+def _forward_names(source: str) -> frozenset[str]:
+    """Names assigned from an expression that reads a later row.
+
+    Read with `ast`, not libcst: nothing here is rewritten. It only decides
+    which operand drop_column is entitled to remove, and picking the wrong one
+    would delete a legitimate condition instead of the leak.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return frozenset()
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _reads_forward(node.value):
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return frozenset(names)
+
+
+def _reads_forward(node: ast.expr) -> bool:
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        if not isinstance(child.func, ast.Attribute) or child.func.attr != "shift":
+            continue
+        first = child.args[0] if child.args else None
+        if isinstance(first, ast.UnaryOp) and isinstance(first.op, ast.USub):
+            return True
+        if (
+            isinstance(first, ast.Constant)
+            and isinstance(first.value, int)
+            and first.value < 0
+        ):
+            return True
+    return False
 
 
 def _keyword(arg: cst.Arg) -> str:
@@ -105,7 +328,7 @@ def apply_patch(path: Path, candidate: LeakCandidate, operation: str) -> PatchRe
             ok=False, patched_source=source, error=f"{path} does not parse: {error}"
         )
 
-    repair = _Repair(candidate.line, operation)
+    repair = _Repair(candidate.line, operation, _forward_names(source))
     patched = wrapper.visit(repair).code
 
     if not repair.applied:
