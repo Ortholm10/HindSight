@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 import tempfile
+from dataclasses import asdict
 from pathlib import Path
 
 from hindsight_core.llm import LLMError, complete
@@ -52,6 +53,7 @@ MAX_ATTEMPTS = 5
 # null delta because it says the repair itself was wrong; a null delta outranks
 # a non-applying operation because at least something ran and was measured.
 _INFORMATIVENESS = (
+    "repair_rejected",
     "patch_broken",
     "untestable",
     "no_effect",
@@ -88,7 +90,37 @@ OPERATION: <one operation name, or none>
 WHY: <one line>
 """
 
+CONFIRM_PROMPT = """A repair was applied to a suspected {leak_type} leak and the \
+strategy got worse.
+
+{skill}
+
+The repair, as a diff:
+{diff}
+
+Sharpe moved {delta:+.3f} after it.
+
+No one chose this repair. It was found by trying every operation in the fix \
+vocabulary until one changed the number, so the only thing established so far \
+is that the number moved.
+
+A falling Sharpe has two possible causes and they are not the same finding:
+
+  (a) the repair removed information the strategy was never entitled to, and \
+the original number was inflated by a leak; or
+  (b) the repair corrupted something the strategy legitimately uses — a \
+supervised training label, which is forward-looking by definition; a \
+diagnostic or reporting column; a parameter the strategy is entitled to — and \
+the model simply got worse.
+
+Answer in exactly this format:
+LEGITIMATE: yes if (a), no if (b)
+WHY: <one line>
+"""
+
 _OP_RE = re.compile(r"OPERATION:\s*([a-z_]+)", re.IGNORECASE)
+_LEGITIMATE_RE = re.compile(r"LEGITIMATE:\s*(yes|no)", re.IGNORECASE)
+_WHY_RE = re.compile(r"WHY:\s*(.+)")
 
 
 def classify(before: RunRecord, after: RunRecord, delta: dict[str, float]) -> str:
@@ -133,6 +165,11 @@ def prove_leak(
     tried: set[str] = set()
     llm_retries = 0
 
+    # Operations someone actually chose, with the code in front of them. The
+    # sweep's own picks are not in here, and that difference is what the
+    # confirmation gate below keys off.
+    endorsed = {operation} if operation in OPERATIONS else set()
+
     next_op = operation if operation in OPERATIONS else ""
     if not next_op:
         next_op, refused = _sweep(path, candidate, tried)
@@ -160,24 +197,33 @@ def prove_leak(
         attempts.append(attempt)
 
         if attempt.status == "proven":
-            return ProofResult(
-                candidate=candidate,
-                status="proven",
-                attempts=tuple(attempts),
-                finding=Finding(
+            legitimate, why = True, ""
+            if next_op not in endorsed and budget.spend_llm():
+                legitimate, why = _confirm_repair(candidate, attempt)
+            if legitimate:
+                return ProofResult(
                     candidate=candidate,
-                    before_run_id=attempt.before_run_id,
-                    after_run_id=attempt.after_run_id,
-                    diff=attempt.diff,
-                    delta=attempt.delta,
-                ),
-                patched_source=patched,
+                    status="proven",
+                    attempts=tuple(attempts),
+                    finding=Finding(
+                        candidate=candidate,
+                        before_run_id=attempt.before_run_id,
+                        after_run_id=attempt.after_run_id,
+                        diff=attempt.diff,
+                        delta=attempt.delta,
+                    ),
+                    patched_source=patched,
+                )
+            attempts[-1] = attempt = ProofAttempt(
+                **{**asdict(attempt), "status": "repair_rejected", "error": why}
             )
 
         next_op = ""
         if llm_retries < max_llm_retries and budget.spend_llm():
             llm_retries += 1
             next_op = _next_operation(path, candidate, attempts, tried)
+            if next_op:
+                endorsed.add(next_op)
         if not next_op:
             next_op, refused = _sweep(path, candidate, tried)
             attempts += refused
@@ -324,6 +370,46 @@ def _next_operation(
     return chosen if chosen in OPERATIONS and chosen not in tried else ""
 
 
+def _confirm_repair(
+    candidate: LeakCandidate, attempt: ProofAttempt
+) -> tuple[bool, str]:
+    """Did that repair remove a leak, or just break the strategy?
+
+    The sweep will keep trying operations until one moves the number, and a
+    falling Sharpe is a weaker fact than it looks: corrupting a supervised
+    training label collapses a fitted model exactly the way removing a leak
+    does. Measured on l10 and l11, where flipping `target = close.shift(-1) >
+    close` took Sharpe from 3.44 to 0.21 and from 2.03 to 0.35 — and, worse,
+    hid the real leak downstream, because a model fed a broken label no longer
+    responds to anything.
+
+    So a repair nobody chose has to answer for itself before it becomes a
+    finding. A repair triage named is not re-litigated: that judgement was
+    made with the code in view and re-asking would spend a call to second-guess
+    it.
+
+    An unreachable or unreadable provider means the repair is NOT confirmed.
+    Failing open here would put the thing this gate exists to stop back on the
+    report every time a free tier is busy.
+    """
+    prompt = CONFIRM_PROMPT.format(
+        leak_type=candidate.leak_type,
+        skill=_skill_for(candidate.leak_type),
+        diff=attempt.diff,
+        delta=attempt.delta.get("sharpe", 0.0),
+    )
+    try:
+        answer = complete(prompt, system=SYSTEM, max_tokens=2048)
+    except LLMError as error:
+        return False, f"could not confirm an unrequested repair: {error}"
+    verdict = _LEGITIMATE_RE.search(answer)
+    why = _WHY_RE.search(answer)
+    reason = why.group(1).strip()[:300] if why else "no reason given"
+    if verdict is None:
+        return False, f"could not confirm an unrequested repair: {reason}"
+    return verdict.group(1).lower() == "yes", reason
+
+
 def _history(attempts: list[ProofAttempt]) -> str:
     """Each prior attempt as one line the model can actually act on."""
     lines = []
@@ -335,6 +421,11 @@ def _history(attempts: list[ProofAttempt]) -> str:
             lines.append(f"- {attempt.operation}: the patched code crashed — {tail}")
         elif attempt.status == "untestable":
             lines.append(f"- {attempt.operation}: the patched code made no trades")
+        elif attempt.status == "repair_rejected":
+            lines.append(
+                f"- {attempt.operation}: lowered Sharpe, but it corrupts something "
+                f"the strategy is entitled to — {attempt.error}"
+            )
         elif "sharpe" in attempt.delta:
             lines.append(
                 f"- {attempt.operation}: ran clean, Sharpe moved "

@@ -62,6 +62,9 @@ def offline(monkeypatch):
     monkeypatch.setattr(orchestrator, "triage", _stub_triage)
     monkeypatch.setattr(differential, "_next_operation", lambda *a, **k: "")
     monkeypatch.setattr(
+        differential, "_confirm_repair", lambda *a, **k: (True, "stubbed confirmation")
+    )
+    monkeypatch.setattr(
         orchestrator, "_judge_plausible", lambda *a, **k: (False, "stubbed judge")
     )
 

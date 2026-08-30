@@ -14,6 +14,7 @@ from eval.cache_data import DATA_DIR
 from eval.detectors import DETECTORS
 from eval.harness import SuiteResult, format_table, run_suite
 from hindsight_cli.printer import print_event
+from hindsight_core import llm
 from hindsight_core.events import EventEmitter
 from hindsight_core.models import Event
 from hindsight_core.orchestrator import audit as agent_audit
@@ -55,13 +56,8 @@ def _eval(args: argparse.Namespace) -> int:
         return 0
 
     passes = [
-        run_suite(
-            DETECTORS[args.detector],
-            suite=args.suite,
-            case_id=args.case,
-            with_metrics=not args.no_metrics,
-        )
-        for _ in range(max(1, args.repeat))
+        _one_pass(args, index, max(1, args.repeat))
+        for index in range(1, max(1, args.repeat) + 1)
     ]
     result = passes[0]
     if args.json:
@@ -86,6 +82,25 @@ def _eval(args: argparse.Namespace) -> int:
             print()
             print(format_spread(passes))
     return 0
+
+
+def _one_pass(args: argparse.Namespace, index: int, total: int) -> SuiteResult:
+    """One scoring pass, given its own prompt cache when there is more than one.
+
+    Without this a repeat measures nothing. The cache is keyed by prompt, so a
+    second pass over the same cache replays the first one byte for byte and
+    reports a spread of zero no matter how unstable the agent actually is.
+    Each pass therefore pays for its own answers, which is the real cost of
+    finding out.
+    """
+    if total > 1:
+        llm.CACHE_DIR = llm.pass_cache(index)
+    return run_suite(
+        DETECTORS[args.detector],
+        suite=args.suite,
+        case_id=args.case,
+        with_metrics=not args.no_metrics,
+    )
 
 
 def _suite_payload(result: SuiteResult) -> dict[str, object]:
@@ -183,7 +198,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="run the suite N times and report the spread; the agent is not "
-        "deterministic and one pass is not a result",
+        "deterministic and one pass is not a result. Each pass gets its own "
+        "prompt cache, so a repeat costs real provider calls - sharing one "
+        "cache would replay pass 1 and report a spread of zero",
     )
     ev.add_argument(
         "--no-metrics",
@@ -214,6 +231,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The event stream carries em-dashes and arrows, and a Windows console
+    # defaults to a codepage that cannot encode them. Without this the reasoning
+    # the agent emits arrives on screen corrupted.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     args = build_parser().parse_args(argv)
     try:
         return args.handler(args)

@@ -50,9 +50,12 @@ def _render(event: Event) -> list[str]:
 
     if event.type is EventType.PROVE_START:
         candidate = payload["candidate"]
+        # The diff is optional here and always present on the result. The
+        # pipeline patches once and can show it up front; the agent may try
+        # several operations, so there is nothing to show yet.
         return [
             f"prove     line {candidate['line']} via {payload['operation']}",
-            *(f"          {ln}" for ln in str(payload["diff"]).splitlines()),
+            *_diff(payload),
         ]
 
     if event.type is EventType.PROVE_RESULT:
@@ -100,6 +103,10 @@ def _final(payload: dict[str, object]) -> list[str]:
     return lines
 
 
+def _diff(payload: dict[str, object]) -> list[str]:
+    return [f"          {ln}" for ln in str(payload.get("diff", "")).splitlines()]
+
+
 def _wrap(text: str, width: int = 76) -> list[str]:
     """Reasons are sentences, not labels, and a terminal is not infinitely wide."""
     return [f"          {line}" for line in textwrap.wrap(text, width) or [""]]
@@ -114,6 +121,7 @@ def _prove_result(payload: dict[str, object]) -> list[str]:
 
     lines = [
         head,
+        *_diff(payload),
         f"          before {_metrics(payload['before_metrics'])} "
         f"({payload['before_run_id']})",
         f"          after  {_metrics(payload['after_metrics'])} "

@@ -29,7 +29,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-CACHE_DIR = Path(__file__).resolve().parents[1] / ".hindsight" / "llm_cache"
+_DEFAULT_CACHE = Path(__file__).resolve().parents[1] / ".hindsight" / "llm_cache"
+
+# Overridable by environment because of one measurement, not for configurability
+# in general: the agent is non-deterministic, and a cache keyed by prompt makes a
+# re-run replay the first run byte for byte. Repeating the eval against the same
+# cache therefore measures nothing at all. Pointing each pass at its own
+# directory is what makes a reported spread a spread rather than an artefact.
+CACHE_DIR = Path(os.environ.get("HINDSIGHT_LLM_CACHE") or _DEFAULT_CACHE)
+
+
+def pass_cache(index: int) -> Path:
+    """A cache of its own for one pass of a repeated eval.
+
+    Named here rather than by the caller because this module owns what a
+    cache directory is, and because the directories have to be stable across
+    invocations - a judge re-running the eval should hit the same three.
+    """
+    return _DEFAULT_CACHE.parent / f"{_DEFAULT_CACHE.name}_pass{index}"
+
 
 # Pinned, never "-latest": a floating alias that silently reroutes to a new
 # model would change every triage answer between a judge's run and ours.
@@ -76,9 +94,12 @@ def complete(
     *,
     system: str = "",
     max_tokens: int = 1024,
-    cache_dir: Path = CACHE_DIR,
+    cache_dir: Path | None = None,
 ) -> str:
-    cache_file = _cache_path(prompt, system, max_tokens, cache_dir)
+    # Resolved per call, not bound at import: the eval's repeat mode points
+    # successive passes at different caches, and a default frozen into the
+    # signature would silently ignore that and replay pass one three times.
+    cache_file = _cache_path(prompt, system, max_tokens, cache_dir or CACHE_DIR)
     if cache_file.exists():
         return json.loads(cache_file.read_text("utf-8"))["text"]
 

@@ -230,3 +230,93 @@ def test_an_operation_outside_the_vocabulary_never_reaches_the_sandbox(mechanica
 
     assert "rewrite_the_signal" not in [a.operation for a in result.attempts]
     assert result.status == "proven"  # the sweep found trailing_window anyway
+
+
+# --- the sweep is not allowed to manufacture a finding on its own ------------
+
+
+def test_a_repair_nobody_proposed_must_be_confirmed_before_it_counts(monkeypatch):
+    """A Sharpe that fell is not the same fact as a leak that was removed.
+
+    On l10 the sweep reaches future_shift on the training label
+    `target = close.shift(-1) > close`. Flipping it corrupts the label, the
+    fitted model collapses, and the delta looks exactly like a proven leak. It
+    is not one — a label is legitimately forward-looking — so a repair the
+    model never proposed has to be confirmed before it becomes a finding.
+    """
+    monkeypatch.setattr(differential, "_next_operation", lambda *a, **k: "")
+    monkeypatch.setattr(
+        differential, "_confirm_repair", lambda *a, **k: (False, "that is the label")
+    )
+
+    path = CASES / "l10_random_split" / "strategy.py"
+    baseline = run_backtest(path, DATA)
+
+    result = prove_leak(
+        path,
+        _candidate(path, "L01"),
+        DATA,
+        baseline,
+        operation="chronological_split",
+        runs={baseline.run_id: baseline},
+    )
+
+    assert result.finding is None
+    assert result.status == "repair_rejected"
+    rejected = [a for a in result.attempts if a.status == "repair_rejected"]
+    assert rejected and rejected[0].operation == "future_shift"
+    # The number really did fall. That it fell is exactly what is not enough.
+    assert rejected[0].delta["sharpe"] < 0
+
+
+def test_a_repair_the_triage_named_is_not_second_guessed(monkeypatch):
+    """Confirmation applies to the sweep, not to the model's own answer. The
+    seed operation was chosen with the code in front of it; re-asking would
+    spend a call to relitigate a judgement already made."""
+    asked = []
+    monkeypatch.setattr(differential, "_next_operation", lambda *a, **k: "")
+    monkeypatch.setattr(
+        differential,
+        "_confirm_repair",
+        lambda *a, **k: (asked.append(1), (True, "fine"))[1],
+    )
+
+    path = CASES / "l02_centered_window" / "strategy.py"
+    baseline = run_backtest(path, DATA)
+
+    result = prove_leak(
+        path,
+        _candidate(path, "L02"),
+        DATA,
+        baseline,
+        operation="trailing_window",
+        runs={baseline.run_id: baseline},
+    )
+
+    assert result.status == "proven"
+    assert asked == [], "the seed operation needs no confirmation"
+
+
+def test_a_confirmed_sweep_repair_still_counts(monkeypatch):
+    """l05's rolling_stat comes from the sweep and is a real repair. The gate
+    must not cost the retry behaviour it was added alongside."""
+    monkeypatch.setattr(differential, "_next_operation", lambda *a, **k: "")
+    monkeypatch.setattr(
+        differential, "_confirm_repair", lambda *a, **k: (True, "causal")
+    )
+
+    path = CASES / "l05_full_sample_zscore" / "strategy.py"
+    baseline = run_backtest(path, DATA)
+
+    result = prove_leak(
+        path,
+        _candidate(path, "L05"),
+        DATA,
+        baseline,
+        operation="expanding_stat",
+        runs={baseline.run_id: baseline},
+    )
+
+    assert result.status == "proven"
+    assert result.finding is not None
+    assert result.attempts[-1].operation == "rolling_stat"
