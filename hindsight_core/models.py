@@ -124,3 +124,76 @@ class Event:
     type: EventType
     payload: dict[str, object] = field(default_factory=dict)
     ts: float = field(default_factory=time.time)
+
+
+@dataclass
+class Budget:
+    """Hard ceilings on one audit's two spendable resources.
+
+    Mutable on purpose: it is loop state, not a record crossing a boundary.
+    Hitting a ceiling is a *verdict*, never a quiet stop — the orchestrator
+    turns `exhausted` into "stopped on budget", which is a different answer
+    from "clean" and must never be rendered as one.
+    """
+
+    max_llm_calls: int = 50
+    max_sandbox_runs: int = 60
+    llm_calls: int = 0
+    sandbox_runs: int = 0
+    # The first ceiling reached, kept rather than recomputed: a later cap being
+    # hit too does not change which one actually stopped the audit.
+    hit: str = ""
+
+    def spend_llm(self) -> bool:
+        if self.llm_calls >= self.max_llm_calls:
+            self.hit = self.hit or f"llm call cap of {self.max_llm_calls} reached"
+            return False
+        self.llm_calls += 1
+        return True
+
+    def spend_run(self) -> bool:
+        if self.sandbox_runs >= self.max_sandbox_runs:
+            self.hit = self.hit or f"sandbox run cap of {self.max_sandbox_runs} reached"
+            return False
+        self.sandbox_runs += 1
+        return True
+
+    @property
+    def exhausted(self) -> bool:
+        return bool(self.hit)
+
+    @property
+    def reason(self) -> str:
+        return self.hit
+
+
+@dataclass(frozen=True)
+class ProofAttempt:
+    """One repair tried against one candidate, and what it cost to learn."""
+
+    operation: str
+    status: str
+    applied: bool
+    error: str = ""
+    before_run_id: str = ""
+    after_run_id: str = ""
+    delta: dict[str, float] = field(default_factory=dict)
+    diff: str = ""
+    stderr: str = ""
+
+
+@dataclass(frozen=True)
+class ProofResult:
+    """A prover's report on one candidate after its own retry loop.
+
+    `finding` is present only for "proven". Every other status is a distinct
+    reason the candidate is unproven, and they are kept apart because they ask
+    for different next moves — repair the patch, find data it trades on, or
+    report a boundary the fix vocabulary cannot express.
+    """
+
+    candidate: LeakCandidate
+    status: str
+    attempts: tuple[ProofAttempt, ...]
+    finding: Finding | None = None
+    patched_source: str = ""

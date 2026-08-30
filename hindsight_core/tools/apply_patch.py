@@ -69,6 +69,13 @@ _STAT_WINDOWS = {
 # a missing name surfaces honestly as a crashed run rather than a silent one.
 _FOLD = ".iloc[:split]"
 
+# Prefix on the one failure that is not "wrong tool" but "no tool exists".
+# drop_column returns the same PatchResult shape either way, and the prover has
+# to tell them apart: one says keep trying operations, the other says the
+# closed vocabulary provably cannot express this repair. CLAUDE.md rule 2 is
+# why the second is reported rather than forced.
+BOUNDARY_MARKER = "vocabulary-boundary:"
+
 
 class _Repair(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (PositionProvider,)
@@ -83,6 +90,7 @@ class _Repair(cst.CSTTransformer):
         self.operation = operation
         self.forward_names = forward_names
         self.applied = False
+        self.boundary = ""
 
     def _covers_line(self, node: cst.CSTNode) -> bool:
         """True when the candidate's line falls anywhere inside this node.
@@ -200,6 +208,14 @@ class _Repair(cst.CSTTransformer):
             if kept is not None:
                 self.applied = True
                 return updated.with_changes(value=kept)
+            # It read a forward-looking name and still nothing could be taken
+            # away: the assigned value IS the leak, not a conjunct alongside it.
+            if _names_in(updated.value) & self.forward_names:
+                self.boundary = (
+                    f"{BOUNDARY_MARKER} the value assigned here is itself the "
+                    "leaking comparison; no operand can be dropped, and rebuilding "
+                    "it needs a substitute column — a judgement, not a removal"
+                )
 
         return updated
 
@@ -352,7 +368,8 @@ def apply_patch(path: Path, candidate: LeakCandidate, operation: str) -> PatchRe
         return PatchResult(
             ok=False,
             patched_source=source,
-            error=(
+            error=repair.boundary
+            or (
                 f"{operation} found nothing to transform at {path.name}:"
                 f"{candidate.line}"
             ),

@@ -1,9 +1,11 @@
 import pytest
 
 from hindsight_core.models import (
+    Budget,
     EventType,
     Finding,
     LeakCandidate,
+    ProofResult,
     RunRecord,
     SandboxOutcome,
 )
@@ -64,3 +66,27 @@ def test_event_types_match_the_stream_schema():
         "agent_decision",
         "final",
     ]
+
+
+def test_budget_refuses_to_overspend_and_names_which_cap_it_hit():
+    budget = Budget(max_llm_calls=2, max_sandbox_runs=1)
+    assert budget.spend_llm() is True
+    assert budget.spend_llm() is True
+    assert budget.spend_llm() is False
+    assert budget.exhausted is True
+    assert "llm" in budget.reason
+
+
+def test_budget_counts_the_two_resources_separately():
+    budget = Budget(max_llm_calls=1, max_sandbox_runs=2)
+    assert budget.spend_llm() is True
+    assert budget.spend_run() is True
+    assert budget.spend_run() is True
+    assert budget.spend_run() is False
+    assert "sandbox" in budget.reason
+
+
+def test_proof_result_defaults_to_no_finding():
+    result = ProofResult(candidate=CANDIDATE, status="no_effect", attempts=())
+    assert result.finding is None
+    assert result.attempts == ()

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from hindsight_core.models import LeakCandidate
-from hindsight_core.tools.apply_patch import apply_patch
+from hindsight_core.tools.apply_patch import BOUNDARY_MARKER, apply_patch
 
 SOURCE = '''"""A docstring that must survive."""
 
@@ -373,3 +373,56 @@ def test_a_candidate_on_an_argument_line_still_patches_its_call(tmp_path):
     assert result.ok, result.error
     assert "shuffle=False" in result.patched_source
     assert _runs(tmp_path, result.patched_source) is not SandboxOutcome.CRASHED
+
+
+BOUNDARY_SOURCE = '''import pandas as pd
+
+
+def run_positions(df):
+    forward_max = df["close"].rolling(10).max().shift(-10)
+    signal = forward_max > df["close"] * 1.05
+    return signal
+'''
+
+NO_FORWARD_SOURCE = '''import pandas as pd
+
+
+def run_positions(df):
+    signal = df["close"] > df["open"]
+    return signal
+'''
+
+
+def test_drop_column_reports_the_vocabulary_boundary_when_the_signal_is_the_leak(
+    tmp_path,
+):
+    """L08's shape: the decision IS the leaking comparison. Removing an operand
+    is not available, and rebuilding it needs a substitute column — a judgement,
+    not a deletion. That has to read differently from 'operation not
+    applicable', because the two ask the prover for different next moves."""
+    path = tmp_path / "s.py"
+    path.write_text(BOUNDARY_SOURCE, "utf-8")
+    candidate = LeakCandidate(
+        leak_type="L03", file=str(path), line=6, snippet="signal = ...", reason="r"
+    )
+
+    result = apply_patch(path, candidate, "drop_column")
+
+    assert result.ok is False
+    assert result.error.startswith(BOUNDARY_MARKER)
+    assert "substitute" in result.error
+
+
+def test_drop_column_that_simply_does_not_apply_is_not_a_boundary(tmp_path):
+    """No forward-looking name anywhere: drop_column is the wrong tool here, not
+    a limit of the vocabulary. The prover must keep trying other operations."""
+    path = tmp_path / "s.py"
+    path.write_text(NO_FORWARD_SOURCE, "utf-8")
+    candidate = LeakCandidate(
+        leak_type="L03", file=str(path), line=5, snippet="signal = ...", reason="r"
+    )
+
+    result = apply_patch(path, candidate, "drop_column")
+
+    assert result.ok is False
+    assert not result.error.startswith(BOUNDARY_MARKER)
