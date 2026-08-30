@@ -1,8 +1,40 @@
-"""Subprocess execution with a hard timeout and resource caps.
+"""Subprocess execution with a hard timeout, resource caps, and a fixed seed.
 
 Audited code is untrusted and often broken. Every distinct failure maps to a
 distinct SandboxOutcome — never one collapsed error path. Broken input is the
 normal case here, so nothing the child does may raise into the agent loop.
+
+Determinism is a guarantee of this module, not an implementation detail
+=======================================================================
+
+Every audited strategy runs under a fixed global RNG seed (`_child._SEED`,
+applied to both `random` and `numpy.random` before the strategy is imported).
+This is load-bearing, not tidiness.
+
+Hindsight's entire claim is differential: a leak is proven when removing the
+illegitimate information measurably deflates the strategy. That subtraction is
+only evidence if the two runs differ *by the patch and nothing else*. Under an
+unseeded RNG they also differ by the draw, and the difference between those two
+explanations is invisible in the number — which is exactly the class of silent,
+plausible-looking failure this project exists to catch. Measured on
+l10_random_split: forty runs of one unchanged file spanned Sharpe 3.03 to 4.75.
+A patch worth 0.4 is unrecoverable inside that.
+
+So a strategy that depends on unseeded randomness does not get a free pass to
+be irreproducible, and its variance is not silently absorbed as measurement
+noise. The sandbox fixes the seed and says so. Two consequences follow, and
+both are intended:
+
+* Re-running an audit reproduces its numbers exactly — for us, and for anyone
+  checking our work from a clean clone.
+* A strategy whose result depends on the draw is measured at one draw. That is
+  a real limitation, and an honest one: it is stated here and belongs in the
+  changelog rather than hidden behind a delta that looks decisive.
+  Characterising such a strategy across seeds is a different tool than this
+  one, and reporting a single seeded run as if it settled the matter would be
+  the same overclaim Hindsight was built to refuse.
+
+Seeding makes two runs *comparable*. It does not make either one *right*.
 """
 
 from __future__ import annotations

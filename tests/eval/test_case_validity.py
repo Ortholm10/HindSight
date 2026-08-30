@@ -39,11 +39,11 @@ EXPECTED_LIMITATIONS = {
 # Also frozen, and deliberately a SEPARATE list from the one above. A
 # limitation says a case cannot meet a validity rule. A correction says we
 # edited a frozen case after the freeze - a strictly stronger claim, because
-# the case set is the evidence. A corrected case sits out nothing: it must
-# still pass every rule below, which is what makes the edit defensible.
-EXPECTED_CORRECTIONS = {
-    "l10_random_split": ["random_state"],
-}
+# the case set is the evidence. Empty: no frozen case has been edited. The
+# l10 random_state correction was made, measured and then reverted, because
+# it moved a headline score, and this list is where that would have had to be
+# admitted.
+EXPECTED_CORRECTIONS: dict[str, list[str]] = {}
 CAUSAL_INJECTED = [c for c in INJECTED if c.causal_check]
 FUTURE_ROW = [c for c in CAUSAL_INJECTED if c.leak_type not in {"L01", "L03"}]
 CAUSAL_CONTROLS = [c for c in CONTROLS if c.causal_check]
@@ -84,8 +84,9 @@ def test_the_known_limitations_are_exactly_the_frozen_set():
 def test_the_locked_corrections_are_exactly_the_frozen_set():
     """Every post-freeze edit to a case is declared, reasoned, and countable.
 
-    The set may only grow by editing this literal, which forces the edit into a
-    diff and a review rather than into a case file alone.
+    Currently none. The set may only grow by editing the literal above, which
+    forces the edit into a diff and a review rather than into a case file
+    alone.
     """
     actual = {c.case_id: c.locked_corrections for c in CASES if c.locked_corrections}
     assert actual == EXPECTED_CORRECTIONS

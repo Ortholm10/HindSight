@@ -65,9 +65,9 @@ class CaseMeta:
     # Deliberate edits to a frozen case, made after the freeze. Distinct from
     # known_limitations, which records a validity rule a case cannot meet: a
     # correction repairs the case's own construction, and the case must still
-    # pass every rule afterwards. Locked by its own test so the list cannot
-    # grow quietly - "we edited the evidence" is exactly the claim that needs a
-    # written reason attached to it.
+    # pass every rule afterwards. Empty, and intended to stay that way - the
+    # schema exists so that if a case ever does need editing, the edit has to
+    # be declared and reasoned rather than slipped into a case file.
     locked_corrections: list[str] = field(default_factory=list)
     correction_reason: str = ""
 

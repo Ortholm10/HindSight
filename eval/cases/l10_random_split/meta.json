@@ -17,9 +17,5 @@
   "causal_check": false,
   "known_limitations": [],
   "limitation_reason": "",
-  "description": "A random forest on SPY price features, trained on the earlier half.",
-  "locked_corrections": [
-    "random_state"
-  ],
-  "correction_reason": "train_test_split(shuffle=True) was written without a random_state, so it drew from the global RNG and the case disagreed with itself: 40 unseeded runs of the unchanged file span sharpe 3.03 to 4.75 (median 3.80). That is wider than most of the leak effects this suite measures, so a before/after delta on this case was partly a coin flip. random_state=0 was chosen a priori, not searched for: it yields 3.7398, the 45th percentile of that distribution and adjacent to its median. The same keyword is added to clean.py, where shuffle=False makes it inert, so the two variants still differ by exactly the one fragment the L10 recipe substitutes and rule 5's round-trip is unaffected. The leak mechanism, its ground-truth line 25, its type and its classification are unchanged; only the draw is now fixed."
+  "description": "A random forest on SPY price features, trained on the earlier half."
 }
