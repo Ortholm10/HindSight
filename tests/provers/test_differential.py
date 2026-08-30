@@ -238,33 +238,39 @@ def test_an_operation_outside_the_vocabulary_never_reaches_the_sandbox(mechanica
 def test_a_repair_nobody_proposed_must_be_confirmed_before_it_counts(monkeypatch):
     """A Sharpe that fell is not the same fact as a leak that was removed.
 
-    On l10 the sweep reaches future_shift on the training label
-    `target = close.shift(-1) > close`. Flipping it corrupts the label, the
-    fitted model collapses, and the delta looks exactly like a proven leak. It
-    is not one — a label is legitimately forward-looking — so a repair the
-    model never proposed has to be confirmed before it becomes a finding.
+    The seed operation does not apply here, so the repair that eventually
+    proves comes from the mechanical sweep — chosen by trying operations until
+    one moved the number, which establishes only that the number moved. Until
+    something answers for it, it is not a finding.
+
+    The instance this gate was built for — the sweep flipping a supervised
+    training label on l10 — is now handled deterministically in scan_file,
+    which no longer offers the label as a candidate at all. The gate remains
+    because the sweep can still reach an operation nobody reasoned about.
     """
     monkeypatch.setattr(differential, "_next_operation", lambda *a, **k: "")
     monkeypatch.setattr(
-        differential, "_confirm_repair", lambda *a, **k: (False, "that is the label")
+        differential,
+        "_confirm_repair",
+        lambda *a, **k: (False, "that corrupts a value the strategy is entitled to"),
     )
 
-    path = CASES / "l10_random_split" / "strategy.py"
+    path = CASES / "l02_centered_window" / "strategy.py"
     baseline = run_backtest(path, DATA)
 
     result = prove_leak(
         path,
-        _candidate(path, "L01"),
+        _candidate(path, "L02"),
         DATA,
         baseline,
-        operation="chronological_split",
+        operation="resample_label",  # does not apply; the sweep takes over
         runs={baseline.run_id: baseline},
     )
 
     assert result.finding is None
     assert result.status == "repair_rejected"
     rejected = [a for a in result.attempts if a.status == "repair_rejected"]
-    assert rejected and rejected[0].operation == "future_shift"
+    assert rejected and rejected[0].operation == "trailing_window"
     # The number really did fall. That it fell is exactly what is not enough.
     assert rejected[0].delta["sharpe"] < 0
 

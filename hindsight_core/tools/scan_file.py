@@ -199,6 +199,138 @@ def _contains_shift(node: ast.expr) -> bool:
     )
 
 
+def _reads_forward(node: ast.expr) -> bool:
+    """True for an expression that reads a later row — the same two shapes the
+    L01 rule fires on, asked of a whole assigned value rather than one call."""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call):
+            name = child.func.attr if isinstance(child.func, ast.Attribute) else ""
+            if name == "shift" and _is_negative(child.args[0] if child.args else None):
+                return True
+        if (
+            isinstance(child, ast.Subscript)
+            and isinstance(child.value, ast.Attribute)
+            and child.value.attr in ("iloc", "iat")
+            and _has_forward_offset(child.slice)
+        ):
+            return True
+    return False
+
+
+def _loaded_names(node: ast.AST) -> set[str]:
+    return {
+        n.id
+        for n in ast.walk(node)
+        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+    }
+
+
+def _assigned_names(node: ast.Assign) -> set[str]:
+    return {n.id for t in node.targets for n in ast.walk(t) if isinstance(n, ast.Name)}
+
+
+def _absorbed_by_fit(statement: ast.stmt) -> set[str]:
+    """Names this statement hands to a `.fit(...)` call as training data."""
+    absorbed: set[str] = set()
+    for node in ast.walk(statement):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute) and node.func.attr in _FIT:
+            for argument in [*node.args, *(kw.value for kw in node.keywords)]:
+                absorbed |= _loaded_names(argument)
+    return absorbed
+
+
+def _training_labels(tree: ast.Module) -> set[str]:
+    """Forward-looking names whose every use ends up inside a `.fit()` call.
+
+    A supervised label is forward-looking by definition — `y` for row t is what
+    happened at t+1 — and that is not a leak. The scanner cannot tell a label
+    from a leaky feature by looking at the expression, because the two are built
+    identically; the whole difference is where the value goes afterwards. So
+    this follows it: a value absorbed by `.fit()` is training data, and a value
+    that reaches the decision by any other route is a feature.
+
+    Reachability rather than a list of blessed function names, because the label
+    rarely goes straight to `fit`. In l10 it passes through `train_test_split`
+    first, and hard-coding that call would make this a rule about scikit-learn's
+    API instead of a rule about where information flows.
+
+    Why it is worth the machinery: without it the mechanical sweep reaches
+    `future_shift` on the label, the fitted model collapses, and the falling
+    Sharpe is indistinguishable from a removed leak. Measured on l10 that cost a
+    false positive AND buried the real leak — a model trained on a corrupted
+    label stops responding to `shuffle=True` at all.
+    """
+    statements = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign | ast.Expr | ast.Return)
+    ]
+    forward = {
+        name
+        for node in statements
+        if isinstance(node, ast.Assign) and _reads_forward(node.value)
+        for name in _assigned_names(node)
+    }
+    if not forward:
+        return set()
+
+    uses: dict[str, list[ast.stmt]] = {}
+    for statement in statements:
+        source = statement.value if isinstance(statement, ast.Assign) else statement
+        if source is None:
+            continue
+        for name in _loaded_names(source):
+            uses.setdefault(name, []).append(statement)
+
+    # Least fixed point outward from the fit calls: a name is training data if
+    # every use of it is, and forwarding through an assignment only counts once
+    # the names it assigns are known to be training data themselves.
+    labels: set[str] = set()
+    while True:
+        grown = {n for n in uses if n not in labels and _is_label(n, uses[n], labels)}
+        if not grown:
+            return forward & labels
+        labels |= grown
+
+
+def _is_label(name: str, statements: list[ast.stmt], labels: set[str]) -> bool:
+    """Every use of `name` is training data, and at least one path reaches fit.
+
+    A use forwards when the statement assigns it onward and the names it assigns
+    are themselves labels. Targets never read again — the discarded halves of a
+    `train_test_split` unpacking — carry nothing onward, so they cannot make the
+    name a feature; but they cannot make it a label either, which is why at
+    least one assigned name still has to be known training data.
+    """
+    reaches_fit = False
+    for statement in statements:
+        if name in _absorbed_by_fit(statement):
+            reaches_fit = True
+            continue
+        if not isinstance(statement, ast.Assign):
+            return False
+        if not _assigned_names(statement) & labels:
+            return False
+        reaches_fit = True
+    return reaches_fit
+
+
+def _label_lines(tree: ast.Module, labels: set[str]) -> set[int]:
+    """The lines that build a training label, and only those.
+
+    Every line of the assignment, because a multi-line label expression puts the
+    `shift(-1)` below the line the assignment opens on and the candidate is
+    recorded against the argument.
+    """
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _assigned_names(node) & labels:
+            lines |= set(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return lines
+
+
 def _htf_chain(tree: ast.Module) -> tuple[dict[str, int], bool]:
     """Assignments carrying a resampled series, and whether any of them lags it.
 
@@ -267,6 +399,12 @@ def scan_file(path: Path) -> list[LeakCandidate]:
         return []
     scan = _Scan(source, path)
     scan.visit(tree)
+
+    # Dropped after the visit rather than guarded inside it: the rule is about
+    # a whole name's reachability, which is not knowable while walking one node.
+    for line in _label_lines(tree, _training_labels(tree)):
+        for key in [k for k in scan.found if k[1] == line]:
+            del scan.found[key]
 
     carriers, lagged = _htf_chain(tree)
     if carriers and not lagged and _merges_as_of(tree):
