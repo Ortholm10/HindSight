@@ -22,7 +22,7 @@ def run_positions(df: pd.DataFrame) -> pd.Series:
     features = build_features(df)
     target = (df["close"].shift(-1) > df["close"]).astype(int).reindex(features.index)
     x_train, _, y_train, _ = train_test_split(
-        features, target, test_size=0.5, shuffle=True
+        features, target, test_size=0.5, shuffle=True, random_state=0
     )
     model = RandomForestClassifier(
         n_estimators=300, max_depth=12, min_samples_leaf=1, random_state=0, n_jobs=1

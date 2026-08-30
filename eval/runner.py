@@ -11,7 +11,7 @@ import importlib.util
 import json
 import random
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 
@@ -62,6 +62,14 @@ class CaseMeta:
     limitation_reason: str
     description: str
     path: Path
+    # Deliberate edits to a frozen case, made after the freeze. Distinct from
+    # known_limitations, which records a validity rule a case cannot meet: a
+    # correction repairs the case's own construction, and the case must still
+    # pass every rule afterwards. Locked by its own test so the list cannot
+    # grow quietly - "we edited the evidence" is exactly the claim that needs a
+    # written reason attached to it.
+    locked_corrections: list[str] = field(default_factory=list)
+    correction_reason: str = ""
 
     @property
     def is_injected(self) -> bool:

@@ -35,6 +35,15 @@ EXPECTED_LIMITATIONS = {
     "l05_full_sample_zscore": ["rule3"],
     "l11_preprocess_before_split": ["rule4"],
 }
+
+# Also frozen, and deliberately a SEPARATE list from the one above. A
+# limitation says a case cannot meet a validity rule. A correction says we
+# edited a frozen case after the freeze - a strictly stronger claim, because
+# the case set is the evidence. A corrected case sits out nothing: it must
+# still pass every rule below, which is what makes the edit defensible.
+EXPECTED_CORRECTIONS = {
+    "l10_random_split": ["random_state"],
+}
 CAUSAL_INJECTED = [c for c in INJECTED if c.causal_check]
 FUTURE_ROW = [c for c in CAUSAL_INJECTED if c.leak_type not in {"L01", "L03"}]
 CAUSAL_CONTROLS = [c for c in CONTROLS if c.causal_check]
@@ -70,6 +79,27 @@ def test_the_known_limitations_are_exactly_the_frozen_set():
     for case in CASES:
         if case.known_limitations:
             assert len(case.limitation_reason) > 100, case.case_id
+
+
+def test_the_locked_corrections_are_exactly_the_frozen_set():
+    """Every post-freeze edit to a case is declared, reasoned, and countable.
+
+    The set may only grow by editing this literal, which forces the edit into a
+    diff and a review rather than into a case file alone.
+    """
+    actual = {c.case_id: c.locked_corrections for c in CASES if c.locked_corrections}
+    assert actual == EXPECTED_CORRECTIONS
+    for case in CASES:
+        if case.locked_corrections:
+            assert len(case.correction_reason) > 100, case.case_id
+
+
+@pytest.mark.parametrize("meta", PROVABLE, ids=ids(PROVABLE))
+def test_a_corrected_case_sits_out_no_validity_rule(meta):
+    """A correction is not an exemption. If repairing a case's construction
+    also required excusing it from a rule, the repair changed the case."""
+    if meta.locked_corrections:
+        assert meta.known_limitations == [], meta.case_id
 
 
 @pytest.mark.parametrize("meta", PROVABLE, ids=ids(PROVABLE))
