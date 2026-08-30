@@ -1,15 +1,15 @@
 {
   "suite": "all",
-  "detector": "pipeline",
+  "detector": "agent",
   "repeat": 1,
-  "detected": 9,
+  "detected": 11,
   "injected_total": 12,
-  "localised": 7,
-  "type_correct": 7,
-  "false_positives": 0,
+  "localised": 6,
+  "type_correct": 6,
+  "false_positives": 1,
   "clean_total": 8,
-  "localisation_precision": 0.6363636363636364,
-  "candidates_on_injected": 11,
+  "localisation_precision": 0.46153846153846156,
+  "candidates_on_injected": 13,
   "cases": [
     {
       "case_id": "c01_lagged_crossover",
@@ -75,7 +75,7 @@
       "case_id": "c06_timeseries_split_pipeline",
       "kind": "clean",
       "leak_type": null,
-      "candidates": 0,
+      "candidates": 1,
       "detected": false,
       "localised": false,
       "type_correct": false,
@@ -149,7 +149,7 @@
       "case_id": "l04_htf_merge",
       "kind": "injected",
       "leak_type": "L04",
-      "candidates": 3,
+      "candidates": 2,
       "detected": true,
       "localised": true,
       "type_correct": true,
@@ -161,11 +161,11 @@
       "case_id": "l05_full_sample_zscore",
       "kind": "injected",
       "leak_type": "L05",
-      "candidates": 0,
-      "detected": false,
-      "localised": false,
-      "type_correct": false,
-      "on_ground_truth": 0,
+      "candidates": 1,
+      "detected": true,
+      "localised": true,
+      "type_correct": true,
+      "on_ground_truth": 1,
       "sharpe_delta": 0.28950386860996685,
       "known_limitations": [
         "rule3"
@@ -175,7 +175,7 @@
       "case_id": "l06_backward_fill",
       "kind": "injected",
       "leak_type": "L06",
-      "candidates": 1,
+      "candidates": 2,
       "detected": true,
       "localised": true,
       "type_correct": true,
@@ -199,8 +199,8 @@
       "case_id": "l08_forward_target",
       "kind": "injected",
       "leak_type": "L08",
-      "candidates": 0,
-      "detected": false,
+      "candidates": 1,
+      "detected": true,
       "localised": false,
       "type_correct": false,
       "on_ground_truth": 0,
@@ -225,9 +225,9 @@
       "leak_type": "L10",
       "candidates": 1,
       "detected": true,
-      "localised": true,
-      "type_correct": true,
-      "on_ground_truth": 1,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
       "sharpe_delta": 2.463245946843668,
       "known_limitations": []
     },
@@ -237,9 +237,9 @@
       "leak_type": "L11",
       "candidates": 1,
       "detected": true,
-      "localised": true,
-      "type_correct": true,
-      "on_ground_truth": 1,
+      "localised": false,
+      "type_correct": false,
+      "on_ground_truth": 0,
       "sharpe_delta": 0.9132498656190078,
       "known_limitations": [
         "rule4"
@@ -260,14 +260,14 @@
   ],
   "passes": [
     {
-      "detected": 9,
+      "detected": 11,
       "injected_total": 12,
-      "localised": 7,
-      "type_correct": 7,
-      "false_positives": 0,
+      "localised": 6,
+      "type_correct": 6,
+      "false_positives": 1,
       "clean_total": 8,
-      "localisation_precision": 0.6363636363636364,
-      "candidates_on_injected": 11,
+      "localisation_precision": 0.46153846153846156,
+      "candidates_on_injected": 13,
       "cases": [
         {
           "case_id": "c01_lagged_crossover",
@@ -333,7 +333,7 @@
           "case_id": "c06_timeseries_split_pipeline",
           "kind": "clean",
           "leak_type": null,
-          "candidates": 0,
+          "candidates": 1,
           "detected": false,
           "localised": false,
           "type_correct": false,
@@ -407,7 +407,7 @@
           "case_id": "l04_htf_merge",
           "kind": "injected",
           "leak_type": "L04",
-          "candidates": 3,
+          "candidates": 2,
           "detected": true,
           "localised": true,
           "type_correct": true,
@@ -419,11 +419,11 @@
           "case_id": "l05_full_sample_zscore",
           "kind": "injected",
           "leak_type": "L05",
-          "candidates": 0,
-          "detected": false,
-          "localised": false,
-          "type_correct": false,
-          "on_ground_truth": 0,
+          "candidates": 1,
+          "detected": true,
+          "localised": true,
+          "type_correct": true,
+          "on_ground_truth": 1,
           "sharpe_delta": 0.28950386860996685,
           "known_limitations": [
             "rule3"
@@ -433,7 +433,7 @@
           "case_id": "l06_backward_fill",
           "kind": "injected",
           "leak_type": "L06",
-          "candidates": 1,
+          "candidates": 2,
           "detected": true,
           "localised": true,
           "type_correct": true,
@@ -457,8 +457,8 @@
           "case_id": "l08_forward_target",
           "kind": "injected",
           "leak_type": "L08",
-          "candidates": 0,
-          "detected": false,
+          "candidates": 1,
+          "detected": true,
           "localised": false,
           "type_correct": false,
           "on_ground_truth": 0,
@@ -483,9 +483,9 @@
           "leak_type": "L10",
           "candidates": 1,
           "detected": true,
-          "localised": true,
-          "type_correct": true,
-          "on_ground_truth": 1,
+          "localised": false,
+          "type_correct": false,
+          "on_ground_truth": 0,
           "sharpe_delta": 2.463245946843668,
           "known_limitations": []
         },
@@ -495,9 +495,9 @@
           "leak_type": "L11",
           "candidates": 1,
           "detected": true,
-          "localised": true,
-          "type_correct": true,
-          "on_ground_truth": 1,
+          "localised": false,
+          "type_correct": false,
+          "on_ground_truth": 0,
           "sharpe_delta": 0.9132498656190078,
           "known_limitations": [
             "rule4"
@@ -520,38 +520,38 @@
   ],
   "spread": {
     "detected": {
-      "min": 9,
-      "max": 9,
-      "values": [
-        9
-      ]
-    },
-    "localised": {
-      "min": 7,
-      "max": 7,
-      "values": [
-        7
-      ]
-    },
-    "type_correct": {
-      "min": 7,
-      "max": 7,
-      "values": [
-        7
-      ]
-    },
-    "false_positives": {
-      "min": 0,
-      "max": 0,
-      "values": [
-        0
-      ]
-    },
-    "candidates_on_injected": {
       "min": 11,
       "max": 11,
       "values": [
         11
+      ]
+    },
+    "localised": {
+      "min": 6,
+      "max": 6,
+      "values": [
+        6
+      ]
+    },
+    "type_correct": {
+      "min": 6,
+      "max": 6,
+      "values": [
+        6
+      ]
+    },
+    "false_positives": {
+      "min": 1,
+      "max": 1,
+      "values": [
+        1
+      ]
+    },
+    "candidates_on_injected": {
+      "min": 13,
+      "max": 13,
+      "values": [
+        13
       ]
     }
   }
