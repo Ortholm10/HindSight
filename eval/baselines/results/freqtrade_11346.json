@@ -1,0 +1,30 @@
+{
+  "baseline": "freqtrade-native",
+  "case_id": "htf_merge_11346",
+  "issue": "https://github.com/freqtrade/freqtrade/issues/11346",
+  "detected_on_leaked_variant": false,
+  "variants": {
+    "ft_strategy": {
+      "case_id": "htf_merge_11346",
+      "variant": "ft_strategy",
+      "strategy_class": "Leak11346",
+      "applicable": true,
+      "exchange": "binance",
+      "reason": "",
+      "has_bias": false,
+      "biased_indicators": [],
+      "error": null
+    },
+    "ft_clean": {
+      "case_id": "htf_merge_11346",
+      "variant": "ft_clean",
+      "strategy_class": "Clean11346",
+      "applicable": true,
+      "exchange": "binance",
+      "reason": "",
+      "has_bias": false,
+      "biased_indicators": [],
+      "error": null
+    }
+  }
+}
