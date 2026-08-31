@@ -1,0 +1,48 @@
+{
+  "case_id": "htf_merge_11346",
+  "issue": "https://github.com/freqtrade/freqtrade/issues/11346",
+  "note": "Case 21. Outside the frozen 20 (meta.json frozen=false) so it moves no published denominator.",
+  "ground_truth_line": 20,
+  "reference_runs": {
+    "leaked": {
+      "sharpe": 3.5889977673150804,
+      "position_changes": 42
+    },
+    "repaired_reference": {
+      "sharpe": 0.4614195052449076,
+      "position_changes": 42
+    }
+  },
+  "hindsight_agent": {
+    "verdict": "leaks_proven",
+    "detected": true,
+    "localised_on_ground_truth_line": false,
+    "sharpe_before": 3.5889977673150804,
+    "sharpe_after": 0.4614195052449076,
+    "findings": [
+      {
+        "line": 16,
+        "leak_type": "L04",
+        "before_run_id": "36ac0342be894cc1",
+        "after_run_id": "8e3c84923719461a",
+        "delta": {
+          "sharpe": -3.127578262070173,
+          "total_return": -2.1043795325364023,
+          "max_drawdown": -0.1561568754981043
+        },
+        "diff": "--- a/strategy.py\n+++ b/strategy.py\n@@ -13,7 +13,7 @@\n \n def run_positions(df: pd.DataFrame) -> pd.Series:\n     closes = df[\"close\"]\n-    weekly = closes.resample(\"W-MON\", label=\"left\", closed=\"left\").last()\n+    weekly = (closes.resample(\"W-MON\", label=\"left\", closed=\"left\").last()).shift(1)\n     weekly_sma = weekly.rolling(4).mean()\n     # The weekly bar is stamped at its OPEN (Monday), so an as-of merge on that\n     # stamp hands every day of the week a trend computed from the week's close.\n"
+      }
+    ],
+    "localisation_note": "The agent lagged the weekly series at its source (line 16) rather than the derived boolean named as ground truth (line 20). The two repairs are algebraically identical - shifting weekly propagates through weekly_sma - and the agent reached Sharpe 0.461, exactly the reference clean.py value. Scored as not localised anyway. The frozen line was NOT changed to match: cases edited after seeing results are not evidence (CLAUDE.md rule 6)."
+  },
+  "freqtrade_baseline": {
+    "native_strategy": true,
+    "used_generic_shim": false,
+    "detected": false,
+    "has_bias_leaked": false,
+    "has_bias_repaired": false,
+    "biased_indicators_leaked": [],
+    "shim_has_bias_artifact_present_on_native_path": false
+  },
+  "verdict": "Hindsight proved the leak by execution; freqtrade lookahead-analysis reported no bias."
+}

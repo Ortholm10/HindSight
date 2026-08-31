@@ -85,6 +85,107 @@ through.
 
 ---
 
+## Session 6 — case 21 (freqtrade #11346) and the leak-signature memory
+
+### The flagship case: a real bug the official tool passes
+
+Case 21 is not ours. It is [freqtrade issue #11346](https://github.com/freqtrade/freqtrade/issues/11346),
+reported by a freqtrade user whose strategy backtested beautifully and lost
+money live, and whose own look-ahead analysis said `has_bias: No`.
+
+It is added as `eval/cases/htf_merge_11346` with `"frozen": false`, which keeps
+it out of every suite and every published denominator. The frozen 20 still read
+20/12/8, and nothing above this entry moves.
+
+The generic freqtrade shim could not be used for it. That shim resamples the
+higher timeframe outside freqtrade and hands the engine one pre-merged frame,
+so it never runs freqtrade's own informative path - which is where the bug
+lives. `eval/baselines/freqtrade_11346.py` and the case's own `ft_strategy.py`
+were built separately: a native `IStrategy` that declares `informative_pairs()`
+and pulls the weekly frame through `self.dp.get_pair_dataframe()`.
+
+**Head to head, same file, same window, same data:**
+
+| | verdict | Sharpe |
+|---|---|---|
+| **Hindsight agent** | leak proven by execution | 3.589 → **0.461** |
+| **freqtrade lookahead-analysis** | `has_bias: No`, `biased_indicators` empty | — |
+
+The leaked native strategy wins **95.0% of 20 trades**; repaired, it wins 50.0%
+of the same 20. freqtrade calls both of them clean.
+
+**Why it misses, from freqtrade's installed source rather than from inference.**
+`optimize/analysis/lookahead.py:146-148` truncates each re-run to the entry
+candle plus exactly one base candle, and `data/dataprovider.py::historic_ohlcv`
+loads the informative series against that same truncated range, filtering
+candles by their **open** date. A weekly candle stamped Monday therefore
+survives a truncation to Wednesday, and survives it *whole* - the stored candle
+already contains Friday's close. Both runs read the identical value, so nothing
+differs and nothing is reported. This is structural: no truncation on open-date
+boundaries can expose a leak that lives inside a single higher-timeframe candle.
+
+**A correction to our own framing.** This case was scoped as "reproduce #11346
+using `@informative` or `merge_informative_pair`". The reporter used neither -
+their strategy has no `informative_pairs` method at all. `merge_informative_pair`
+is *safe*; it shifts the informative stamp forward by one interval, and that is
+precisely why bypassing it leaks. So the leak could not honestly be put inside
+that helper. `ft_strategy.py` uses the native informative path for everything
+except the merge and then hand-rolls the merge as the reporter did;
+`ft_clean.py` restores `merge_informative_pair()`, which is the fix.
+
+**A third instance of the localisation caveat.** The agent repaired line 16
+(`weekly = ...`) rather than line 20 (`w_up = ...`), which `meta.json` names.
+The two are algebraically identical - shifting `weekly` propagates through
+`weekly_sma` - and the agent landed on Sharpe 0.461, to three decimals the
+reference `clean.py` value. It is scored **not localised** anyway, and the
+frozen line was not changed to match.
+
+**A session-2 question, settled.** `eval/baselines/freqtrade.py` documents an
+artifact where raw `has_bias` fires `True` on nearly every case, clean ones
+included, and concludes `biased_indicators` is the signal to trust. That
+artifact is **shim-specific**: on the native strategies freqtrade reports
+`has_bias = False` for both variants, with no timing noise at all. It came from
+the shim turning a 0/1 position series into discrete enter/exit events.
+`biased_indicators` was used as the cross-check regardless, and it is empty for
+both. Both signals agree, and both are wrong.
+
+### Memory: recognition, and deliberately nothing more
+
+`hindsight_core/memory.py` stores confirmed leak signatures as a flat,
+human-editable JSON list keyed by `leak_type` plus the normalised snippet. File
+and line are excluded from the signature: the same bug pasted into another
+module is the same bug.
+
+A hit skips **one** thing - the triage LLM call - and supplies the operation
+that worked last time. It does not skip the prover, the sandbox, or
+`hooks/verification.py`. `record()` is reachable only from the branch that has
+already passed the gate, so nothing enters the store unproven and nothing
+leaves it as proof.
+
+That claim is tested, and the test was checked by mutation rather than trusted:
+an orchestrator that appends a `Finding` built straight from a stored entry
+makes `test_a_memory_hit_still_has_to_be_proven_by_execution` fail on the
+verification hook with *"cites before run ... which is not in the run store"*.
+
+**Two things wiring it up exposed, both fixed:**
+
+- The core test suite was order-dependent and quietly self-confirming. One
+  test's audit taught the shared default store a signature that the next test's
+  audit then recognised, skipping the triage that test existed to exercise.
+  `tests/core/conftest.py` now gives every core test an empty store.
+- The eval would have stopped reproducing. A warm store makes case N's result
+  depend on cases 1..N-1 and on every audit ever run on the machine.
+  `eval/detectors.py` now scores each case against a **cold** store. Memory's
+  speed benefit is a product feature, not something the benchmark gets to bake
+  in silently.
+
+**What memory does not do.** It has not been measured as a speedup. The honest
+statement is that it removes one LLM call per recognised candidate; no
+end-to-end timing claim is made here, because the eval deliberately runs cold
+and so never exercises it.
+
+---
+
 ## The numbers that hurt
 
 ### The bug that cost a false positive and two localisations, and how it was found
@@ -236,7 +337,16 @@ deterministic rule that replaced it is right every time by construction.
 hindsight eval --detector pipeline --json --out eval/results/pipeline.json
 hindsight eval --detector agent --repeat 3 --json --out eval/results/agent.json
 hindsight audit tests/fixtures/stacked_leaks.py --data eval/data/SPY.csv --mode agent
+
+# Case 21 (freqtrade #11346) - outside the frozen 20, reached by name
+hindsight eval --case htf_merge_11346 --detector agent
+python -m eval.baselines.freqtrade_11346     # needs freqtrade installed
 ```
+
+Case 21's combined record is `eval/results/case21.json`; the freqtrade half is
+`eval/baselines/results/freqtrade_11346.json`. The freqtrade baseline is a
+development dependency only - it is never imported by `hindsight_core` and is
+not needed to run an audit.
 
 `--repeat N` gives each pass its own prompt cache, so a repeat costs real
 provider calls. Sharing one cache would replay the first pass byte for byte and
