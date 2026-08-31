@@ -15,8 +15,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from eval.cache_data import DATA_DIR
 from hindsight_core import orchestrator, pipeline
 from hindsight_core.events import EventEmitter
@@ -27,43 +25,11 @@ from hindsight_core.models import (
     ProofAttempt,
     ProofResult,
 )
-from hindsight_core.provers import differential
 from hindsight_core.tools.run_backtest import RUNS_DIR
 
 DATA = DATA_DIR / "SPY.csv"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 CASES = Path(__file__).resolve().parents[2] / "eval" / "cases"
-
-# The operation the taxonomy names first for each type — what a competent
-# triage answer looks like, and for L05 deliberately the one that does not
-# work, because that is the case the retry ladder exists for.
-OBVIOUS = {
-    "L01": "future_shift",
-    "L02": "trailing_window",
-    "L03": "lag",
-    "L04": "lag",
-    "L05": "expanding_stat",
-    "L06": "forward_fill",
-    "L07": "resample_label",
-    "L09": "trailing_window",
-    "L10": "chronological_split",
-    "L11": "fit_in_fold",
-}
-
-
-def _stub_triage(path, candidate):
-    return True, OBVIOUS.get(candidate.leak_type, ""), f"stub: {candidate.leak_type}"
-
-
-@pytest.fixture
-def offline(monkeypatch):
-    """Triage calls every candidate a leak, retries fall through to the
-    mechanical sweep, and the judge always says keep looking. No network."""
-    monkeypatch.setattr(orchestrator, "triage", _stub_triage)
-    monkeypatch.setattr(differential, "_next_operation", lambda *a, **k: "")
-    monkeypatch.setattr(
-        orchestrator, "_judge_plausible", lambda *a, **k: (False, "stubbed judge")
-    )
 
 
 def _collect(emitter: EventEmitter) -> list[Event]:
@@ -80,13 +46,13 @@ def _of(events: list[Event], kind: EventType) -> list[Event]:
 
 
 def test_a_leak_the_single_pass_discards_is_proven_after_the_first_fix(
-    offline, monkeypatch, tmp_path
+    offline, stub_triage, monkeypatch, tmp_path
 ):
     """The L05 cutoff is a real leak whose removal *raises* Sharpe by 0.62
     while the centered window is still there. Judged once against the original
     baseline it is no-effect; judged again against the repaired one it deflates.
     Same file, same triage, same prover — the loop is the whole difference."""
-    monkeypatch.setattr(pipeline, "triage", _stub_triage)
+    monkeypatch.setattr(pipeline, "triage", stub_triage)
     path = FIXTURES / "stacked_leaks.py"
 
     agent = orchestrator.audit(path, DATA, EventEmitter(), trajectory_dir=tmp_path)
@@ -201,6 +167,7 @@ def test_a_no_effect_verdict_is_reopened_when_the_baseline_it_was_measured_on_go
         Budget(),
         60.0,
         RUNS_DIR,
+        tmp_path / "_memory" / "memory.json",
     )
 
     assert state.queue[0].verdict == "", "the stale no-effect verdict must be dropped"

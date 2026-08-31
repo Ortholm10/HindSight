@@ -59,9 +59,7 @@ EXPECTED_LIMITATIONS = {
 EXPECTED_CORRECTIONS: dict[str, list[str]] = {}
 CAUSAL_INJECTED = [c for c in ALL_INJECTED if c.causal_check]
 FUTURE_ROW = [c for c in CAUSAL_INJECTED if c.leak_type not in {"L01", "L03"}]
-CAUSAL_CONTROLS = [
-    c for c in ALL_CASES if not c.is_injected and c.causal_check
-]
+CAUSAL_CONTROLS = [c for c in ALL_CASES if not c.is_injected and c.causal_check]
 
 
 def ids(cases):

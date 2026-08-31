@@ -33,6 +33,8 @@ from uuid import uuid4
 from hindsight_core.events import EventEmitter
 from hindsight_core.hooks.verification import verify_findings
 from hindsight_core.llm import LLMError, complete
+from hindsight_core.memory import DEFAULT_PATH as MEMORY_PATH
+from hindsight_core.memory import record as remember
 from hindsight_core.models import (
     Budget,
     Event,
@@ -49,6 +51,7 @@ from hindsight_core.models import (
 # both ask the model exactly the same question about exactly the same candidate.
 from hindsight_core.pipeline import _as_payload, finding_payload, triage
 from hindsight_core.provers.differential import prove_leak
+from hindsight_core.tools.check_memory import check_memory
 from hindsight_core.tools.run_backtest import RUNS_DIR, run_backtest
 from hindsight_core.tools.scan_file import scan_file
 
@@ -135,6 +138,7 @@ def audit(
     store: Path = RUNS_DIR,
     budget: Budget | None = None,
     trajectory_dir: Path = TRAJECTORY_DIR,
+    memory_path: Path | None = None,
 ) -> list[Finding]:
     """Audit one file. Returns only what execution proved.
 
@@ -143,6 +147,9 @@ def audit(
     here would quietly make that comparison a different measurement.
     """
     budget = budget if budget is not None else Budget()
+    # Resolved here, not in the signature: a default argument binds once at
+    # import, which would make the store impossible to redirect per audit.
+    memory_path = memory_path if memory_path is not None else MEMORY_PATH
     events: list[Event] = []
     emitter.subscribe(events.append)
     started = time.time()
@@ -206,7 +213,7 @@ def audit(
             runs={baseline.run_id: baseline},
         )
         verdict, reason = _loop(
-            state, path, data_path, emitter, budget, timeout_s, store
+            state, path, data_path, emitter, budget, timeout_s, store, memory_path
         )
 
         # Nothing reaches a report without passing this. It raises rather than
@@ -248,6 +255,7 @@ def _loop(
     budget: Budget,
     timeout_s: float,
     store: Path,
+    memory_path: Path,
 ) -> tuple[str, str]:
     """One turn per unexamined candidate, for as many turns as it takes."""
     while True:
@@ -262,16 +270,30 @@ def _loop(
             return _verdict(state), _closing_reason(state)
 
         state.step += 1
-        if not budget.spend_llm():
-            continue  # the next turn reports the ceiling rather than guessing
+        hit = check_memory(queued.candidate, memory_path)
+        if hit is not None:
+            # Recognition, not proof. The LLM call is skipped because this
+            # exact shape has already been through the sandbox; the sandbox run
+            # below is NOT skipped, because that run is the only thing that has
+            # ever made a candidate a finding. See tests/core/test_memory.py.
+            is_leak = True
+            operation = str(hit["operation"])
+            answer = (
+                f"recognised from memory: signature {hit['signature']} confirmed "
+                f"{hit['confirmations']}x, repaired by {operation}"
+            )
+        else:
+            if not budget.spend_llm():
+                continue  # the next turn reports the ceiling rather than guessing
+            is_leak, operation, answer = triage(state.source_path, queued.candidate)
 
-        is_leak, operation, answer = triage(state.source_path, queued.candidate)
         emitter.emit(
             EventType.TRIAGE,
             candidate=_as_payload(queued.candidate),
             is_leak=is_leak,
             operation=operation,
             answer=answer,
+            from_memory=hit is not None,
         )
         if not is_leak:
             queued.verdict = "discarded"
@@ -333,7 +355,17 @@ def _loop(
             continue
 
         state.findings.append(result.finding)
-        _accept(state, result, original, data_path, emitter, budget, timeout_s, store)
+        _accept(
+            state,
+            result,
+            original,
+            data_path,
+            emitter,
+            budget,
+            timeout_s,
+            store,
+            memory_path,
+        )
 
 
 def _accept(
@@ -345,6 +377,7 @@ def _accept(
     budget: Budget,
     timeout_s: float,
     store: Path,
+    memory_path: Path,
 ) -> None:
     """Keep the repair, re-measure, and re-open what the old number decided.
 
@@ -357,6 +390,10 @@ def _accept(
     operation = result.attempts[-1].operation
     state.applied.append(f"{operation} at line {result.candidate.line}")
     state.source_path.write_text(result.patched_source, "utf-8")
+    # Recorded here rather than at report time because this is the branch that
+    # has an execution behind it. A candidate that never got proven never
+    # teaches the store anything.
+    remember(memory_path, result.finding, operation)
 
     budget.spend_run()
     state.baseline = run_backtest(state.source_path, data_path, timeout_s, store)

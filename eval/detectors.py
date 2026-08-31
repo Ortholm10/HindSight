@@ -15,6 +15,8 @@ measurement rather than a claim.
 from __future__ import annotations
 
 import json
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 from eval.cache_data import DATA_DIR
@@ -75,6 +77,20 @@ def _data_for(path: Path) -> Path:
     return DATA_DIR / f"{symbols[0]}.csv"
 
 
+@contextmanager
+def _cold_memory():
+    """An empty leak-signature store, scoped to one scored case.
+
+    The agent's memory is a real product feature and it persists between real
+    audits. It must NOT persist inside the eval: a warm store makes case N's
+    result depend on cases 1..N-1 and on every audit ever run on the machine,
+    so a published score would stop reproducing from a clean clone. Each case
+    is therefore scored cold, which is also the harder measurement.
+    """
+    with tempfile.TemporaryDirectory(prefix="hindsight-eval-memory-") as tmp:
+        yield Path(tmp) / "memory.json"
+
+
 def agent_detector(path: Path) -> list[LeakCandidate]:
     """The agent scored as a detector, on exactly the pipeline's rules.
 
@@ -83,7 +99,11 @@ def agent_detector(path: Path) -> list[LeakCandidate]:
     no execution record behind it, and the product refuses to report one of
     those as a finding. `agent-reported` is where it appears.
     """
-    return [f.candidate for f in agent_audit(path, _data_for(path), EventEmitter())]
+    with _cold_memory() as memory_path:
+        findings = agent_audit(
+            path, _data_for(path), EventEmitter(), memory_path=memory_path
+        )
+    return [f.candidate for f in findings]
 
 
 def agent_reported_detector(path: Path) -> list[LeakCandidate]:
@@ -97,7 +117,8 @@ def agent_reported_detector(path: Path) -> list[LeakCandidate]:
     emitter = EventEmitter()
     events: list[Event] = []
     emitter.subscribe(events.append)
-    findings = agent_audit(path, _data_for(path), emitter)
+    with _cold_memory() as memory_path:
+        findings = agent_audit(path, _data_for(path), emitter, memory_path=memory_path)
     boundary = [
         LeakCandidate(**entry["candidate"])
         for event in events
