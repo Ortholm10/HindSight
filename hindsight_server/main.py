@@ -8,12 +8,16 @@ import tempfile
 import uuid
 from pathlib import Path
 
+from dataclasses import asdict
+
 from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from eval.cache_data import DATA_DIR
 from hindsight_core.models import Event
+from hindsight_core.tools.run_backtest import load_run
 from hindsight_server.jobs import manager
 
 # A strategy file, not a dataset — anything bigger is not what this endpoint is for.
@@ -25,6 +29,13 @@ DEFAULT_DATA = DATA_DIR / "SPY.csv"
 def create_app() -> FastAPI:
     app = FastAPI(title="Hindsight audit server")
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    # Dev-only: the web app is served from a different origin (Vite on 5173).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.post("/audit")
     async def start_audit(
@@ -76,6 +87,14 @@ def create_app() -> FastAPI:
                 job.unsubscribe(queue)
 
         return EventSourceResponse(event_source())
+
+    @app.get("/runs/{run_id}")
+    async def get_run(run_id: str) -> JSONResponse:
+        try:
+            record = load_run(run_id)
+        except KeyError:
+            raise HTTPException(404, f"no such run: {run_id}") from None
+        return JSONResponse(asdict(record), headers={"Cache-Control": "no-store"})
 
     return app
 

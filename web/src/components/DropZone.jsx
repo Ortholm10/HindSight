@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import SampleCard from "./SampleCard";
 
 const SAMPLES = [
@@ -6,36 +6,42 @@ const SAMPLES = [
     key: "golden_cross",
     name: "Golden Cross",
     description: "Classic dual moving-average crossover.",
+    file: "/samples/golden_cross.py",
   },
   {
     key: "rsi_mean_reversion",
     name: "RSI Mean Reversion",
     description: "Oscillator threshold entries.",
+    file: "/samples/rsi_mean_reversion.py",
   },
   {
     key: "multi_timeframe_momentum",
     name: "Multi-Timeframe Momentum",
     description: "Daily entries confirmed on a higher timeframe.",
+    file: "/samples/multi_timeframe_momentum.py",
   },
 ];
 
-const EDGE_CASES = [
-  { key: "edge_untestable", label: "untestable" },
-  { key: "edge_budget", label: "stopped on budget" },
-  { key: "edge_error", label: "dropped stream" },
-];
+async function fetchSample(sample) {
+  const res = await fetch(sample.file);
+  const blob = await res.blob();
+  return new File([blob], `${sample.key}.py`, { type: "text/x-python" });
+}
 
 export default function DropZone({ onSelect }) {
   const [dragging, setDragging] = useState(false);
-  const [droppedNote, setDroppedNote] = useState(false);
+  const fileInputRef = useRef(null);
 
   function handleDrop(e) {
     e.preventDefault();
     setDragging(false);
-    if (e.dataTransfer.files?.length) {
-      setDroppedNote(true);
-      onSelect("golden_cross");
-    }
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) onSelect(dropped);
+  }
+
+  function handleFileInput(e) {
+    const picked = e.target.files?.[0];
+    if (picked) onSelect(picked);
   }
 
   return (
@@ -59,18 +65,21 @@ export default function DropZone({ onSelect }) {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        className={`flex flex-col items-center gap-2 rounded-md border-2 border-dashed px-8 py-14 text-center transition-colors ${
+        onClick={() => fileInputRef.current?.click()}
+        className={`flex cursor-pointer flex-col items-center gap-2 rounded-md border-2 border-dashed px-8 py-14 text-center transition-colors ${
           dragging ? "border-amber bg-amber-dim/30" : "border-panel-border"
         }`}
       >
         <p className="font-mono text-sm text-ink-muted">
-          drop a .py file or notebook here
+          drop a .py file here, or click to browse
         </p>
-        {droppedNote && (
-          <p className="mt-2 font-mono text-xs text-amber">
-            No server yet — showing a recorded audit for this file.
-          </p>
-        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".py"
+          onChange={handleFileInput}
+          className="hidden"
+        />
       </div>
 
       <div className="grid gap-6 sm:grid-cols-3">
@@ -79,24 +88,8 @@ export default function DropZone({ onSelect }) {
             key={s.key}
             name={s.name}
             description={s.description}
-            onClick={() => onSelect(s.key)}
+            onClick={() => fetchSample(s).then(onSelect)}
           />
-        ))}
-      </div>
-
-      <div className="text-center font-mono text-xs text-ink-muted">
-        Edge cases:{" "}
-        {EDGE_CASES.map((e, i) => (
-          <span key={e.key}>
-            {i > 0 && " · "}
-            <button
-              type="button"
-              onClick={() => onSelect(e.key)}
-              className="underline decoration-dotted underline-offset-4 hover:text-amber"
-            >
-              {e.label}
-            </button>
-          </span>
         ))}
       </div>
     </div>

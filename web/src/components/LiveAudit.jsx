@@ -1,5 +1,5 @@
-import { useEffect, useReducer, useRef } from "react";
-import { startReplay } from "../lib/replay";
+import { useEffect, useReducer } from "react";
+import { startAudit } from "../lib/audit";
 import ReasoningStream from "./ReasoningStream";
 import EvidencePanel from "./EvidencePanel";
 
@@ -33,24 +33,19 @@ function reducer(state, event) {
   }
 }
 
-export default function LiveAudit({ scenario, onDone, onError }) {
+export default function LiveAudit({ file, mode, onDone, onError }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const doneTimer = useRef(null);
 
   useEffect(() => {
-    const stop = startReplay(scenario, {
+    const stop = startAudit(file, {
+      mode,
       onEvent: dispatch,
-      onDone: () => {
-        doneTimer.current = setTimeout(onDone, 1500);
-      },
+      onFinal: onDone,
       onError,
     });
-    return () => {
-      stop();
-      if (doneTimer.current) clearTimeout(doneTimer.current);
-    };
+    return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenario]);
+  }, [file]);
 
   return (
     <div className="grid h-screen grid-cols-2 divide-x divide-panel-border">
