@@ -222,3 +222,7 @@ eval/baselines/.ft_workspace/
 .hindsight/
 docs/superpowers/
 eval/baselines/.ft11346_workspace/
+
+# The agent's leak-signature memory is local audit history, not repo content.
+# A clean clone must start cold, or a published eval number stops reproducing.
+runs/memory.json

@@ -33,7 +33,8 @@
         "diff": "--- a/strategy.py\n+++ b/strategy.py\n@@ -13,7 +13,7 @@\n \n def run_positions(df: pd.DataFrame) -> pd.Series:\n     closes = df[\"close\"]\n-    weekly = closes.resample(\"W-MON\", label=\"left\", closed=\"left\").last()\n+    weekly = (closes.resample(\"W-MON\", label=\"left\", closed=\"left\").last()).shift(1)\n     weekly_sma = weekly.rolling(4).mean()\n     # The weekly bar is stamped at its OPEN (Monday), so an as-of merge on that\n     # stamp hands every day of the week a trend computed from the week's close.\n"
       }
     ],
-    "localisation_note": "The agent lagged the weekly series at its source (line 16) rather than the derived boolean named as ground truth (line 20). The two repairs are algebraically identical - shifting weekly propagates through weekly_sma - and the agent reached Sharpe 0.461, exactly the reference clean.py value. Scored as not localised anyway. The frozen line was NOT changed to match: cases edited after seeing results are not evidence (CLAUDE.md rule 6)."
+    "localisation_note": "The agent lagged the weekly series at its source (line 16) rather than the derived boolean named as ground truth (line 20). The two repairs are algebraically identical - shifting weekly propagates through weekly_sma - and the agent reached Sharpe 0.461, exactly the reference clean.py value. Scored as not localised anyway. The frozen line was NOT changed to match: cases edited after seeing results are not evidence (CLAUDE.md rule 6).",
+    "trajectory": "runs/20260831T190128-caa68921.json"
   },
   "freqtrade_baseline": {
     "native_strategy": true,
