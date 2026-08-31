@@ -13,6 +13,7 @@ backtesting==0.6.6
 fastapi==0.141.1
 sse-starlette==3.4.8
 uvicorn==0.52.4
+python-multipart==0.0.20
 httpx==0.28.1
 python-dotenv==1.2.3
 
