@@ -70,6 +70,10 @@ class CaseMeta:
     # be declared and reasoned rather than slipped into a case file.
     locked_corrections: list[str] = field(default_factory=list)
     correction_reason: str = ""
+    # False for a case added after the freeze. Such a case is held to every
+    # validity rule, but is excluded from the suites and from every recorded
+    # denominator - so adding one cannot move a number already published.
+    frozen: bool = True
 
     @property
     def is_injected(self) -> bool:

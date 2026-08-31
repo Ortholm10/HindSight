@@ -100,7 +100,8 @@ def _score_freqtrade(meta, result: dict) -> dict:
 
 
 def build_results(name: BaselineName, cases_dir: Path = CASES_DIR) -> dict:
-    cases = discover_cases(cases_dir)
+    # Frozen set only - see eval/harness.py::_select for why.
+    cases = [c for c in discover_cases(cases_dir) if c.frozen]
     rows = []
     for meta in cases:
         if name == "oneshot":

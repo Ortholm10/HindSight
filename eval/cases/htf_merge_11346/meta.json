@@ -1,0 +1,22 @@
+{
+  "case_id": "htf_merge_11346",
+  "kind": "injected",
+  "leak_type": "L04",
+  "ground_truth_file": "strategy.py",
+  "ground_truth_line": 20,
+  "expected_inflation": "up",
+  "freqtrade_expressible": "yes",
+  "patchable": true,
+  "symbols": [
+    "SPY"
+  ],
+  "start": "2022-01-03",
+  "end": "2024-12-31",
+  "seed": 20220103,
+  "traps": [],
+  "causal_check": true,
+  "known_limitations": [],
+  "limitation_reason": "",
+  "frozen": false,
+  "description": "Freqtrade issue #11346: a weekly trend merged onto daily rows by the weekly bar's open date. The official lookahead-analysis tool reports no bias."
+}

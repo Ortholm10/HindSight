@@ -106,6 +106,9 @@ def _select(suite: str, case_id: str | None, cases_dir: Path) -> list[CaseMeta]:
         return chosen
     if suite not in SUITES:
         raise ValueError(f"unknown suite {suite!r}; choose one of {', '.join(SUITES)}")
+    # A suite is the frozen set. A post-freeze case is reachable by name only,
+    # because folding one into "all" would restate every score already reported.
+    cases = [c for c in cases if c.frozen]
     if suite == "injected":
         return [c for c in cases if c.is_injected]
     if suite == "clean":

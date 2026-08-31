@@ -13,15 +13,28 @@ from eval.inject import RECIPES, inject, repair
 from eval.runner import WINDOWS, discover_cases, positions_of, run_case
 from hindsight_core.models import SandboxOutcome
 
-CASES = discover_cases()
+ALL_CASES = discover_cases()
+# The frozen 20. Statements about the set's IDENTITY - its counts, its taxonomy
+# coverage, and that each leaked source is exactly what eval/inject.py produces
+# - are about these and only these. A post-freeze case is not built by the
+# injector (case 21 is transcribed from a published bug report, per CLAUDE.md
+# rule 7), so holding it to the round-trip rules would be a category error.
+CASES = [c for c in ALL_CASES if c.frozen]
 INJECTED = [c for c in CASES if c.is_injected]
 CONTROLS = [c for c in CASES if not c.is_injected]
+# The behavioural rules 1-5 and the causality checks run over EVERY case,
+# frozen or not: a case added later still has to clear the same bar to be
+# evidence.
 # Rules 2-5 all compare a leaked run against a repaired one. L12 has no
 # repair: docs/taxonomy.md marks a hindsight universe detectable but not
 # patchable, and says it must never be counted as execution-proven. Holding it
 # to rules that presuppose a fix would contradict the taxonomy it comes from,
 # so it is scored on detection and ground truth alone.
-PROVABLE = [c for c in INJECTED if c.patchable]
+ALL_INJECTED = [c for c in ALL_CASES if c.is_injected]
+PROVABLE = [c for c in ALL_INJECTED if c.patchable]
+# Rules 5 and 6 drive eval/inject.py's own recipes over the case source, so
+# they only mean anything for cases the injector actually produced.
+FROZEN_PROVABLE = [c for c in INJECTED if c.patchable]
 
 
 def held_to(rule: str):
@@ -44,9 +57,11 @@ EXPECTED_LIMITATIONS = {
 # it moved a headline score, and this list is where that would have had to be
 # admitted.
 EXPECTED_CORRECTIONS: dict[str, list[str]] = {}
-CAUSAL_INJECTED = [c for c in INJECTED if c.causal_check]
+CAUSAL_INJECTED = [c for c in ALL_INJECTED if c.causal_check]
 FUTURE_ROW = [c for c in CAUSAL_INJECTED if c.leak_type not in {"L01", "L03"}]
-CAUSAL_CONTROLS = [c for c in CONTROLS if c.causal_check]
+CAUSAL_CONTROLS = [
+    c for c in ALL_CASES if not c.is_injected and c.causal_check
+]
 
 
 def ids(cases):
@@ -71,6 +86,23 @@ def test_the_set_is_twenty_cases_twelve_injected_and_eight_clean():
     assert len(CASES) == 20
     assert len(INJECTED) == 12
     assert len(CONTROLS) == 8
+
+
+def test_case_21_is_present_and_sits_outside_the_frozen_twenty():
+    """The flagship case is additive: it must never move a headline number.
+
+    It is held to behavioural rules 1-4 and to both causality checks, exactly
+    like a frozen case. It is exempt only from the rules that are statements
+    about the INJECTOR - rule 5's repair(), rule 6's recipe match, and the
+    inject() round-trip -
+    because it is transcribed from freqtrade issue #11346 rather than generated
+    by eval/inject.py. And it is excluded from the counts, the suites, and the
+    baseline denominators, so adding it cannot silently restate a published
+    score.
+    """
+    everything = discover_cases()
+    assert len(everything) == 21
+    assert [c.case_id for c in everything if not c.frozen] == ["htf_merge_11346"]
 
 
 def test_the_known_limitations_are_exactly_the_frozen_set():
@@ -129,7 +161,7 @@ def test_every_taxonomy_type_appears_exactly_once():
 
 
 # ------------------------------------------------------------------- rule 1
-@pytest.mark.parametrize("meta", CASES, ids=ids(CASES))
+@pytest.mark.parametrize("meta", ALL_CASES, ids=ids(ALL_CASES))
 def test_rule1_both_versions_run_and_trade(meta):
     variants = ["strategy", "clean"] if meta.is_injected else ["strategy"]
     for variant in variants:
@@ -165,7 +197,7 @@ def test_rule4_the_inflation_survives_a_change_of_window(meta):
 
 
 # ------------------------------------------------------------------- rule 5
-@pytest.mark.parametrize("meta", PROVABLE, ids=ids(PROVABLE))
+@pytest.mark.parametrize("meta", FROZEN_PROVABLE, ids=ids(FROZEN_PROVABLE))
 def test_rule5_the_documented_fix_restores_the_clean_version(meta):
     leaked_source = meta.source("strategy").read_text("utf-8")
     clean_source = meta.source("clean").read_text("utf-8")
