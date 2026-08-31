@@ -2,14 +2,14 @@
   "suite": "all",
   "detector": "agent",
   "repeat": 3,
-  "detected": 11,
+  "detected": 10,
   "injected_total": 12,
   "localised": 8,
   "type_correct": 8,
   "false_positives": 0,
   "clean_total": 8,
-  "localisation_precision": 0.6153846153846154,
-  "candidates_on_injected": 13,
+  "localisation_precision": 0.6666666666666666,
+  "candidates_on_injected": 12,
   "cases": [
     {
       "case_id": "c01_lagged_crossover",
@@ -199,8 +199,8 @@
       "case_id": "l08_forward_target",
       "kind": "injected",
       "leak_type": "L08",
-      "candidates": 1,
-      "detected": true,
+      "candidates": 0,
+      "detected": false,
       "localised": false,
       "type_correct": false,
       "on_ground_truth": 0,
@@ -260,14 +260,14 @@
   ],
   "passes": [
     {
-      "detected": 11,
+      "detected": 10,
       "injected_total": 12,
       "localised": 8,
       "type_correct": 8,
       "false_positives": 0,
       "clean_total": 8,
-      "localisation_precision": 0.6153846153846154,
-      "candidates_on_injected": 13,
+      "localisation_precision": 0.6666666666666666,
+      "candidates_on_injected": 12,
       "cases": [
         {
           "case_id": "c01_lagged_crossover",
@@ -457,8 +457,8 @@
           "case_id": "l08_forward_target",
           "kind": "injected",
           "leak_type": "L08",
-          "candidates": 1,
-          "detected": true,
+          "candidates": 0,
+          "detected": false,
           "localised": false,
           "type_correct": false,
           "on_ground_truth": 0,
@@ -518,14 +518,14 @@
       ]
     },
     {
-      "detected": 11,
+      "detected": 10,
       "injected_total": 12,
       "localised": 8,
       "type_correct": 8,
       "false_positives": 0,
       "clean_total": 8,
-      "localisation_precision": 0.6153846153846154,
-      "candidates_on_injected": 13,
+      "localisation_precision": 0.6666666666666666,
+      "candidates_on_injected": 12,
       "cases": [
         {
           "case_id": "c01_lagged_crossover",
@@ -715,8 +715,8 @@
           "case_id": "l08_forward_target",
           "kind": "injected",
           "leak_type": "L08",
-          "candidates": 1,
-          "detected": true,
+          "candidates": 0,
+          "detected": false,
           "localised": false,
           "type_correct": false,
           "on_ground_truth": 0,
@@ -776,14 +776,14 @@
       ]
     },
     {
-      "detected": 11,
+      "detected": 10,
       "injected_total": 12,
       "localised": 8,
       "type_correct": 8,
       "false_positives": 0,
       "clean_total": 8,
-      "localisation_precision": 0.6153846153846154,
-      "candidates_on_injected": 13,
+      "localisation_precision": 0.6666666666666666,
+      "candidates_on_injected": 12,
       "cases": [
         {
           "case_id": "c01_lagged_crossover",
@@ -973,8 +973,8 @@
           "case_id": "l08_forward_target",
           "kind": "injected",
           "leak_type": "L08",
-          "candidates": 1,
-          "detected": true,
+          "candidates": 0,
+          "detected": false,
           "localised": false,
           "type_correct": false,
           "on_ground_truth": 0,
@@ -1036,12 +1036,12 @@
   ],
   "spread": {
     "detected": {
-      "min": 11,
-      "max": 11,
+      "min": 10,
+      "max": 10,
       "values": [
-        11,
-        11,
-        11
+        10,
+        10,
+        10
       ]
     },
     "localised": {
@@ -1072,12 +1072,12 @@
       ]
     },
     "candidates_on_injected": {
-      "min": 13,
-      "max": 13,
+      "min": 12,
+      "max": 12,
       "values": [
-        13,
-        13,
-        13
+        12,
+        12,
+        12
       ]
     }
   }

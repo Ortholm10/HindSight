@@ -22,12 +22,12 @@ frozen cases, three years of daily bars.
 
 | | pipeline | agent |
 |---|---|---|
-| leaks detected | 9/12 | **10/12** |
+| leaks detected | 9/12 | **11/12** |
 | line localised | 7/12 | **8/12** |
 | leak type correct | 7/12 | **8/12** |
 | false positives | 0/8 | 0/8 |
-| localisation precision | 63.6% | **66.7%** |
-| candidates reported on injected cases | 11 | 12 |
+| localisation precision | **63.6%** | 61.5% |
+| candidates reported on injected cases | 11 | 13 |
 
 The localisation sets reconcile exactly: pipeline gets `l01 l02 l04 l06 l07 l10
 l11`; the agent gets those same seven **plus `l05`**, and loses none.
@@ -39,16 +39,17 @@ Per case, where the two differ:
 | `l05_full_sample_zscore` | missed | **detected, localised, typed** | triage picks `expanding_stat`, which runs clean and moves Sharpe **+0.162** — the wrong way. The pipeline stops there. The agent retries and `rolling_stat` proves it at **−0.290**, on the ground-truth line. |
 | `l04_htf_merge` | 3 candidates | 2 candidates | one fewer redundant candidate on the same leak; still localised and typed. |
 | `l06_backward_fill` | 1 candidate | 2 candidates | the agent also proves the `L07` resample candidate at line 8; the correct type is still found at line 10. |
+| `l08_forward_target` | missed | **detected**, not localised | triage's `drop_column` and `trailing_window` do not apply at line 7; the sweep reaches `future_shift`, which turns the forward-looking `forward_max` into a backward one and deflates Sharpe **2.575 → 0.433**. The repair is correct and the leak is real; the case file records line 9, so it scores as detected but not localised. |
 
-**Spread over three passes: none.** detected `[10, 10, 10]`, localised
-`[8, 8, 8]`, false positives `[0, 0, 0]`. Each pass ran against its own prompt
-cache — 91, 79 and 78 prompts respectively — so all three genuinely paid for
+**Spread over three passes: none.** detected `[11, 11, 11]`, localised
+`[8, 8, 8]`, false positives `[0, 0, 0]`. The caches were deleted first and each
+pass ran against its own, issuing 57 live prompts apiece, so all three paid for
 their own answers rather than replaying the first. At temperature 0 the agent is
 stable on this suite. That is a measurement, not an assumption; `--repeat`
 rotates the cache directory precisely so it cannot become one.
 
-**Cost.** 183 LLM calls and 156 sandbox runs across 60 audits — 3.0 calls and
-2.6 runs per audit, against ceilings of 50 and 60.
+**Cost.** 57 LLM calls per pass across 20 audits, against a ceiling of 50 calls
+and 60 sandbox runs per audit.
 
 ### The behaviours that earn the loop
 
@@ -155,7 +156,7 @@ attempt.
 reporting column are built identically to a label and are *not* exempted,
 because neither reaches a `.fit()` call. The rule cannot key off the shift.
 
-### The experiment: LLM self-critique of its own findings
+### The removed experiment: LLM self-critique of its own findings
 
 A repair the model never proposed — one the mechanical sweep found by trying
 operations until the number moved — was made to answer for itself before it
@@ -163,32 +164,37 @@ could become a finding, with the diff and the delta in front of it: *did this
 remove information the strategy was not entitled to, or corrupt something it
 was?*
 
-Measured on all twenty cases, before the reachability fix existed:
+It was built, measured, kept for one revision, and then deleted. The full
+ledger, all on the twenty frozen cases:
 
 | | detected | localised | type | false positives | precision |
 |---|---|---|---|---|---|
-| agent, no confirmation gate | 11/12 | 6/12 | 6/12 | 1/8 | 46.2% |
-| agent, with the gate | 10/12 | 7/12 | 7/12 | 1/8 | 58.3% |
+| before the gate, before the reachability rule | 11/12 | 6/12 | 6/12 | 1/8 | 46.2% |
+| with the gate, before the reachability rule | 10/12 | 7/12 | 7/12 | 1/8 | 58.3% |
+| with the gate, with the reachability rule | 10/12 | 8/12 | 8/12 | 0/8 | 66.7% |
+| **gate deleted, reachability rule kept** | **11/12** | **8/12** | **8/12** | **0/8** | 61.5% |
 
 **The gate gave opposite answers to the same question.** On `l11` it correctly
 rejected the label patch ("modified the supervised training label, which is
-inherently forward-looking") and went on to prove the real `L11` leak at the
-ground-truth line. On `c06` and `l10` it accepted the identical construction. On
-`l08` it rejected a genuine repair — `forward_max` is not a label, it feeds the
-signal directly — and cost a detection.
+inherently forward-looking"). On `c06` and `l10` it accepted the identical
+construction. On `l08` it rejected a genuine repair — `forward_max` is not a
+label, it feeds the signal directly — and cost a detection.
 
-**Its ledger is now worse, because the deterministic rule took its one win.**
-Across all 60 audits of the final three-pass run the gate fires exactly six
-times, all six on `l08`, and every one of them is wrong. Its only remaining
-measured effect on the whole suite is to suppress one correct finding. The label
-cases it used to help are handled in `scan_file` before a candidate is ever
-generated.
+Once `scan_file` handled the label cases deterministically, the gate had nothing
+left to catch. Across the three-pass run it fired **six times, all six on `l08`,
+and every one was wrong**: its entire remaining effect on the suite was to
+suppress one correct finding. Deleting it returned `l08` to detected with false
+positives unchanged at 0/8 — the risk it guarded against did not materialise.
 
-That is the case for deleting it, and the numbers say so plainly: an LLM
-judgement inside the proof path is exactly the kind of confident, plausible,
-unverifiable claim this project exists to refuse. It survives in the code only
-because removing it is a change that has not yet been measured end to end;
-nothing here should be read as a safeguard.
+The one cost is localisation precision, 66.7% → 61.5%, and that is arithmetic
+rather than a new wrong candidate: the numerator is unchanged at 8, the
+denominator goes 12 → 13 because `l08`'s proven candidate sits at line 7 while
+the case file records line 9.
+
+**The lesson, stated plainly:** an LLM judgement inside the proof path is the
+kind of confident, plausible, unverifiable claim this project exists to refuse.
+It was wrong half the time on the one question it was asked, and the
+deterministic rule that replaced it is right every time by construction.
 
 ### What remains unproven
 
@@ -201,10 +207,12 @@ nothing here should be read as a safeguard.
 - **`l12` cannot be detected at all.** There is no L12 rule in `scan_file`, so
   the scanner emits no candidate on its ground-truth line. It is a miss with a
   known cause, not a near-miss.
-- **`l08` is detected by neither.** The scanner offers `L01@7`, and the
-  confirmation gate above rejects the only repair that proves it. Removing the
-  gate returns `l08` to detected at the cost of one candidate's worth of
-  precision; that trade has not been run end to end and so is not claimed here.
+- **`l08` is detected but not localised.** The agent proves `L01@7` — turning
+  `rolling(10).max().shift(-10)` into `.shift(10)`, Sharpe 2.575 → 0.433 — which
+  is a correct repair of a genuinely forward-looking column that feeds the
+  signal. The case file records the leak at line 9 with type `L08`, so it scores
+  detected, not localised, not typed. Line 9 itself remains the vocabulary
+  boundary described above.
 - **`l03` and `l09` are detected but not localised**, and this is partly an
   argument with the ground truth rather than a failure. On `l03` the agent
   patches line 8 (`signal = close > sma`); `meta.json` names line 9, the
