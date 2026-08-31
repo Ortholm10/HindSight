@@ -5,6 +5,105 @@ frozen cases. Nothing is estimated and nothing is rounded in our favour.
 
 ---
 
+## Sessions 1–4 — the arc that decided the architecture
+
+Before there was a loop to measure (Session 5, below), there was a simpler
+question: does an LLM even need to run code to find these bugs? Three
+approaches were tried, in order, and the failure of each one is what the next
+one exists to fix.
+
+### Stage 1 — a raw one-shot prompt
+
+`eval/baselines/oneshot.py` hands the whole strategy file to
+`nvidia/nemotron-3-ultra-550b-a55b:free` (via OpenRouter — the one place this
+project uses it, walled off from the runtime chain per `CLAUDE.md` §4) with
+one prompt and no tools: read the code, say whether it leaks. Scored against
+the twenty frozen cases (`eval/baselines/results/oneshot.json`):
+
+| detected | localised | false positives |
+|---|---|---|
+| 12/12 | 7/12 | 0/8 |
+
+That looks like a solved problem. It is not one. Nothing here is falsifiable —
+the model is asked what it believes, and every case it gets right on this
+benchmark, it gets right by matching a pattern it recognises from training
+data, not by observing a Sharpe ratio move. Recognition on a small, published
+benchmark is not the claim this project makes. Rerun any one of these
+verdicts and there is no way to tell whether it is right by demonstration or
+right by memorisation. This is the gap the rest of the project exists to
+close: a one-shot answer is a guess with good production values.
+
+### Stage 2 — an AST scanner alone
+
+The alternative is a static scanner: walk the AST, flag every full-sample
+statistic, every unlagged decision assignment, every backward-fill. This is
+`hindsight_core/tools/scan_file.py`, and it is deliberately tuned for
+recall — its own docstring says so: *"a candidate generator, not a detector
+... it deliberately over-produces: a false candidate costs one prover run, a
+missed one costs the whole finding."*
+
+Run with nothing downstream of it — no triage, no patch, no execution — that
+tuning is exactly the flood the phrase promises. Measured directly against
+the twenty frozen cases:
+
+```
+total candidates (no triage, no proof): 41
+clean cases with >=1 candidate (scanner-alone false positives): 8/8
+injected cases with >=1 candidate: 12/12
+```
+
+Every one of the eight clean controls — legitimate lagged crossovers,
+expanding z-scores, a properly-embargoed `TimeSeriesSplit` pipeline — throws
+at least one candidate. Reported as-is, that is a 100% false-positive rate on
+the exact cases the suite exists to protect. Recall without a filter is not a
+tool; it is a linter shouting at every `.rolling()` call in the file.
+
+### Stage 3 — the differential execution prover, and the collapse
+
+The fix was never a smarter static rule. It was to stop asking the scanner
+(or the model) to *decide*, and instead patch the candidate, run the strategy
+before and after with everything else held fixed, and let the Sharpe delta
+decide. This is `hindsight_core/provers/differential.py`, gated by
+`hindsight_core/hooks/verification.py` so nothing downstream of it can report
+a finding without both run IDs behind it — CLAUDE.md's rule 1, written in
+code before rule 1 existed in prose.
+
+The first consolidated run of scan → triage → prove (commit `07784d6`, before
+any of the agent-loop or reachability work in Session 5) took the same twenty
+cases from candidate-flood territory to:
+
+| | detected | localised | false positives |
+|---|---|---|---|
+| first pipeline run | 6/12 | 4/12 | — |
+| **after prover fixes landed** | **9/12** | **7/12** | **0/8** |
+
+False positives collapse from 8/8 (report every scanner candidate) to 0/8
+(report only a candidate whose patch measurably moved the metric) —
+**this is the project's main contribution.** Detection recall is lower than
+the unfalsifiable one-shot baseline's 12/12, and that trade is the point: an
+execution-backed 9/12 is worth more than a guessed 12/12, because every one of
+the nine is reproducible by anyone who runs the same command.
+
+### Stage 4 — memory and parallelisation
+
+Sessions 5 and 6, below, add the loop that recovers most of the recall the
+proof requirement gave up (9/12 → 11/12, with false positives held at 0/8
+throughout) and a leak-signature memory that skips redundant triage calls
+without ever skipping the proof.
+
+**A correction to that heading, stated plainly.** Within one audit, candidates
+are proved one at a time off an explicit queue (`orchestrator.py`'s `while`
+loop) — never in parallel; grep confirms no `ThreadPoolExecutor`,
+`asyncio.gather`, or `multiprocessing` anywhere under `hindsight_core`. The
+parallelism that does exist is one level up: `hindsight_server/jobs.py` runs
+each *audit* on its own worker thread, so several users' audits proceed
+concurrently against the FastAPI server, and the SSE fanout for one audit
+never blocks another's. That is a real, load-bearing property — it is just a
+narrower claim than "provers run in parallel," and the narrower claim is the
+one this codebase actually earns.
+
+---
+
 ## Session 5 — the agent loop
 
 **What changed.** `hindsight_core/pipeline.py` walks the candidate list once, in
