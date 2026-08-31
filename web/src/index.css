@@ -1,0 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0a0c;
+  --color-panel: #131316;
+  --color-panel-border: #232328;
+  --color-ink: #e7e5e2;
+  --color-ink-muted: #8a8a92;
+  --color-amber: #f5a623;
+  --color-amber-dim: #3d2c10;
+  --color-green: #4ade80;
+  --color-green-dim: #16311f;
+  --color-slate: #94a3b8;
+  --color-slate-dim: #22262e;
+  --color-diff-add: #4ade80;
+  --color-diff-remove: #f87171;
+
+  --font-sans: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+@layer base {
+  * {
+    scrollbar-color: var(--color-panel-border) var(--color-bg);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.5) rotate(-9deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.96) rotate(-3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-4deg);
+  }
+}
+
+.animate-stamp-in {
+  animation: stamp-in 260ms ease-out both;
+}
